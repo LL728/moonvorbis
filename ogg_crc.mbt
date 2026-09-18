@@ -24,15 +24,24 @@ let crc_lookup : FixedArray[UInt] = {
 }
 
 ///|
-/// 计算一段字节序列的 OGG CRC-32，返回 `0` 到 `0xFFFFFFFF` 之间的无符号值。
+/// 增量计算：从已有的 `crc` 继续处理 `data[start .. start + len)` 的字节。
+///
+/// 用于 OGG 页校验——页内 22..26 字节是 CRC 字段本身，校验时需要把它当作 0
+/// 跳过，因此把页头前 22 字节与 26 字节之后的部分分段累加。
+pub fn ogg_crc32_update(crc : UInt, data : Bytes, start : Int, len : Int) -> UInt {
+  let mut c = crc
+  for i in start..<(start + len) {
+    let byte = data.unsafe_get(i).to_uint()
+    let idx = ((c >> 24) ^ byte).reinterpret_as_int()
+    c = (c << 8) ^ crc_lookup[idx]
+  }
+  c
+}
+
+///|
+/// 计算一段完整字节序列的 OGG CRC-32，返回 `0` 到 `0xFFFFFFFF` 之间的无符号值。
 ///
 /// 调用方可将其结果写入 OGG 页头的 22..26 字节（小端）做校验。
 pub fn ogg_crc32(data : Bytes) -> UInt {
-  let mut crc : UInt = 0U
-  for i in 0..<data.length() {
-    let byte = data.unsafe_get(i).to_uint()
-    let idx = ((crc >> 24) ^ byte).reinterpret_as_int()
-    crc = (crc << 8) ^ crc_lookup[idx]
-  }
-  crc
+  ogg_crc32_update(0U, data, 0, data.length())
 }
