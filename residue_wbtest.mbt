@@ -3,9 +3,9 @@
 
 ///|
 /// type 2、begin=0、end=128、partition_size=8、2 个 classification、classbook=3、
-/// cascade=[2, 41]（第二个含 high_bits=5）。
+/// cascade=[2,41]、residue_books 含 4 个 codebook 索引。
 test "residue 解析" {
-  let data = b"\x02\x00\x00\x00\x00\x80\x00\x00\x07\x00\x00\xc1\x80\x64\x01"
+  let data = b"\x02\x00\x00\x00\x00\x80\x00\x00\x07\x00\x00\xc1\x80\x64\x29\x30\x38\x40\x00"
   let br = BitReader::new(data)
   match Residue::parse(br) {
     Ok(r) => {
@@ -18,6 +18,15 @@ test "residue 解析" {
       @test.assert_eq(r.cascade.length(), 2)
       @test.assert_eq(r.cascade[0], 2)
       @test.assert_eq(r.cascade[1], 41)
+      // residue_books[0]: cascade=2(bit1) -> pass1=5, 其余 -1
+      @test.assert_eq(r.residue_books[0][0], -1)
+      @test.assert_eq(r.residue_books[0][1], 5)
+      @test.assert_eq(r.residue_books[0][2], -1)
+      // residue_books[1]: cascade=41(bit0,3,5) -> pass0=6, pass3=7, pass5=8
+      @test.assert_eq(r.residue_books[1][0], 6)
+      @test.assert_eq(r.residue_books[1][1], -1)
+      @test.assert_eq(r.residue_books[1][3], 7)
+      @test.assert_eq(r.residue_books[1][5], 8)
     }
     Err(e) => @test.fail(e)
   }

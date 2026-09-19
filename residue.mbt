@@ -21,6 +21,7 @@ pub struct Residue {
   classifications : Int
   classbook : Int
   cascade : Array[Int]
+  residue_books : Array[Array[Int]]
 }
 
 ///|
@@ -45,6 +46,20 @@ pub fn Residue::parse(br : BitReader) -> Result[Residue, String] {
     cascade.push(high_bits * 8 + low_bits)
   }
 
+  // 每个 classification 每个 pass 的 codebook 索引（cascade bit 为 1 时读 8 位，否则 -1）
+  let residue_books : Array[Array[Int]] = []
+  for j in 0..<classifications {
+    let books : Array[Int] = []
+    for k in 0..<8 {
+      if (cascade[j] & (1 << k)) != 0 {
+        books.push(br.read_bits(8))
+      } else {
+        books.push(-1)
+      }
+    }
+    residue_books.push(books)
+  }
+
   Ok(
     {
       residue_type,
@@ -54,6 +69,7 @@ pub fn Residue::parse(br : BitReader) -> Result[Residue, String] {
       classifications,
       classbook,
       cascade,
+      residue_books,
     },
   )
 }
