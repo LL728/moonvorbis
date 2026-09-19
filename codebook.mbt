@@ -62,6 +62,7 @@ pub struct Codebook {
   value_bits : Int
   sequence_flag : Int
   multiplicands : Array[Int]
+  multiplicands_f : Array[Float]
   huffman : HuffmanTable
 }
 
@@ -121,6 +122,7 @@ pub fn Codebook::parse(br : BitReader) -> Result[Codebook, String] {
   let mut value_bits = 0
   let mut sequence_flag = 0
   let multiplicands : Array[Int] = []
+  let multiplicands_f : Array[Float] = []
   if lookup_type != 0 {
     if lookup_type != 1 && lookup_type != 2 {
       return Err("reserved codebook lookup type")
@@ -141,6 +143,9 @@ pub fn Codebook::parse(br : BitReader) -> Result[Codebook, String] {
     for _ in 0..<n_values {
       multiplicands.push(br.read_bits(value_bits))
     }
+    for j in 0..<multiplicands.length() {
+      multiplicands_f.push(Float::from_int(multiplicands[j]) * delta_value + min_value)
+    }
   }
 
   let huffman = match HuffmanTable::build(lengths) {
@@ -159,6 +164,7 @@ pub fn Codebook::parse(br : BitReader) -> Result[Codebook, String] {
       value_bits,
       sequence_flag,
       multiplicands,
+      multiplicands_f,
       huffman,
     },
   )
@@ -167,4 +173,27 @@ pub fn Codebook::parse(br : BitReader) -> Result[Codebook, String] {
 /// 标量解码一个码字，返回 entry 索引。
 pub fn Codebook::decode_scalar(self : Codebook, br : BitReader) -> Result[Int, String] {
   self.huffman.decode(br)
+}
+
+/// VQ 解码：解码一个 entry，把 lookup 值累加到 target[offset..offset+len]。
+pub fn Codebook::decode_vq(
+  self : Codebook,
+  br : BitReader,
+  target : Array[Float],
+  offset : Int,
+  len : Int,
+) -> Result[Unit, String] {
+  if self.lookup_type == 0 {
+    return Err("codebook has no lookup table")
+  }
+  let z = match self.decode_scalar(br) {
+    Ok(z) => z
+    Err(e) => return Err(e)
+  }
+  let n = if len > self.dimensions { self.dimensions } else { len }
+  let base = z * self.dimensions
+  for i in 0..<n {
+    target[offset + i] = target[offset + i] + self.multiplicands_f[base + i]
+  }
+  Ok(())
 }

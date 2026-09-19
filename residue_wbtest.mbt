@@ -42,3 +42,36 @@ test "residue 解析失败：type 非法" {
     Err(_) => ()
   }
 }
+
+///|
+/// residue decode（单声道 type1）：参考 target=[10,20,10,20]。
+test "residue decode" {
+  let residue = match Residue::parse(
+    BitReader::new(b"\x01\x00\x00\x00\x00\x04\x00\x00\x01\x00\x00\x00\x40\x04\x00"),
+  ) {
+    Ok(r) => r
+    Err(e) => @test.fail(e)
+  }
+  let cb0 = match Codebook::parse(BitReader::new(b"\x42\x43\x56\x01\x00\x01\x00\x00\x00\x00")) {
+    Ok(c) => c
+    Err(e) => @test.fail(e)
+  }
+  let cb1 = match Codebook::parse(
+    BitReader::new(b"\x42\x43\x56\x02\x00\x01\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\xfc\x19\xca"),
+  ) {
+    Ok(c) => c
+    Err(e) => @test.fail(e)
+  }
+  let target : Array[Float] = []
+  for _ in 0..<4 {
+    target.push(0)
+  }
+  match residue.decode(BitReader::new(b"\x00"), [cb0, cb1], target, 4) {
+    Ok(_) => ()
+    Err(e) => @test.fail(e)
+  }
+  @test.assert_eq(target[0].reinterpret_as_uint(), 0x41200000U) // 10.0
+  @test.assert_eq(target[1].reinterpret_as_uint(), 0x41400000U) // 12.0
+  @test.assert_eq(target[2].reinterpret_as_uint(), 0x41200000U)
+  @test.assert_eq(target[3].reinterpret_as_uint(), 0x41400000U)
+}
