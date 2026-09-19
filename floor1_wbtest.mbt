@@ -68,3 +68,28 @@ test "floor1 解析：复杂（含 masterbook 与多 subclass）" {
     Err(e) => @test.fail(e)
   }
 }
+
+///|
+/// floor1 decode 第一阶段：读 amplitude 与 codebook 值，算 finalY。
+/// 参考 finalY=[100,200,161] 由 Python 独立实现生成。
+test "floor1 decode 第一阶段" {
+  let floor = match Floor1::parse(BitReader::new(b"\x01\x40\x00\x53")) {
+    Ok(f) => f
+    Err(e) => @test.fail(e)
+  }
+  let codebook = match Codebook::parse(
+    BitReader::new(b"\x42\x43\x56\x01\x00\x02\x00\x00\x84\x00"),
+  ) {
+    Ok(c) => c
+    Err(e) => @test.fail(e)
+  }
+  match floor.decode(BitReader::new(b"\x64\xc8\x02"), [codebook]) {
+    Ok(final_y) => {
+      @test.assert_eq(final_y.length(), 3)
+      @test.assert_eq(final_y[0], 100)
+      @test.assert_eq(final_y[1], 200)
+      @test.assert_eq(final_y[2], 161)
+    }
+    Err(e) => @test.fail(e)
+  }
+}

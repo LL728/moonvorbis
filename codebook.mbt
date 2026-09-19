@@ -62,6 +62,7 @@ pub struct Codebook {
   value_bits : Int
   sequence_flag : Int
   multiplicands : Array[Int]
+  huffman : HuffmanTable
 }
 
 ///|
@@ -142,6 +143,11 @@ pub fn Codebook::parse(br : BitReader) -> Result[Codebook, String] {
     }
   }
 
+  let huffman = match HuffmanTable::build(lengths) {
+    Ok(h) => h
+    Err(e) => return Err(e)
+  }
+
   Ok(
     {
       dimensions,
@@ -153,6 +159,12 @@ pub fn Codebook::parse(br : BitReader) -> Result[Codebook, String] {
       value_bits,
       sequence_flag,
       multiplicands,
+      huffman,
     },
   )
+}
+
+/// 标量解码一个码字，返回 entry 索引。
+pub fn Codebook::decode_scalar(self : Codebook, br : BitReader) -> Result[Int, String] {
+  self.huffman.decode(br)
 }
