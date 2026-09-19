@@ -93,3 +93,28 @@ test "floor1 decode 第一阶段" {
     Err(e) => @test.fail(e)
   }
 }
+
+///|
+/// floor1 synthesize：finalY 插值成 floor 曲线，关键位置与 Python 参考 bit 级一致。
+test "floor1 synthesize 插值" {
+  let floor = match Floor1::parse(BitReader::new(b"\x01\x40\x00\x53")) {
+    Ok(f) => f
+    Err(e) => @test.fail(e)
+  }
+  let codebook = match Codebook::parse(
+    BitReader::new(b"\x42\x43\x56\x01\x00\x02\x00\x00\x84\x00"),
+  ) {
+    Ok(c) => c
+    Err(e) => @test.fail(e)
+  }
+  let final_y = match floor.decode(BitReader::new(b"\x64\xc8\x02"), [codebook]) {
+    Ok(y) => y
+    Err(e) => @test.fail(e)
+  }
+  let out = floor.synthesize(final_y, 16)
+  @test.assert_eq(out.length(), 16)
+  @test.assert_eq(out[0].reinterpret_as_uint(), 0x3872506EU)
+  @test.assert_eq(out[5].reinterpret_as_uint(), 0x3B3043FDU)
+  @test.assert_eq(out[8].reinterpret_as_uint(), 0x3D005DFBU)
+  @test.assert_eq(out[15].reinterpret_as_uint(), 0x3D005DFBU)
+}
