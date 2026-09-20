@@ -29,7 +29,19 @@ moon run cmd/main --target wasm-gc -- input.ogg output.wav
 
 ### 浏览器
 
+![浏览器内解码演示](demo/demo.gif)
+
 线上版本：<https://ll728.github.io/moonvorbis/demo/>
+
+这段动画取自 `demo/record.html` 的完整流程：加载 wasm、选中 `demo/sample.ogg`、
+解码、画出波形。波形与元信息都来自真实解码结果，不存在预置画面；页面按
+`?t=<毫秒>` 渲染流程中的某一刻，`tools/make_demo_gif.py` 逐帧截图再合成 GIF，
+所以重新生成的结果是稳定可复现的：
+
+```bash
+python -m http.server 8000      # 先在仓库根目录起服务
+python tools/make_demo_gif.py
+```
 
 本地运行：
 
@@ -76,7 +88,10 @@ Builtins：Chrome / Edge 130+、Firefox 134+，Safari 目前不支持。
 | `tools/residue_sweep.py` | 扫 residue 各条通路 |
 | `tools/floor0_sweep.py` | 扫 floor 0 各条通路 |
 | `tools/wasm_contract.py` | 静态校验 wasm 的导入/导出契约 |
+| `tools/make_demo_gif.py` | 逐帧截图并合成演示 GIF |
 | `demo/headless-test.html` | 无头浏览器冒烟测试 |
+| `demo/decoder.js` | 浏览器侧解码胶水，两个演示页共用 |
+| `demo/record.html` | 演示录制页，按 `?t=` 渲染流程中的某一刻 |
 
 ## 测试
 
