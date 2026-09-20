@@ -140,7 +140,8 @@ def comment_header(vendor: str = "moonvorbis-vorbisgen") -> bytes:
     return b.flush()
 
 
-def make_setup(residue_type: int, floor_type: int) -> bytes:
+def make_setup(residue_type: int, floor_type: int,
+               partition_size: int = 128, dim: int = 1) -> bytes:
     """构造 setup header。
 
     最小可用配置：2 个 codebook（一个当 classbook，一个当 residue 的 VQ 书）、
@@ -157,12 +158,16 @@ def make_setup(residue_type: int, floor_type: int) -> bytes:
     # 码长 [1,1]（完备 Huffman），lookup_type=0（不做 VQ）
     _write_codebook(b, dimensions=1, lengths=[1, 1], lookup_type=0)
 
-    # codebook 1：residue 的 VQ 书。lookup_type=2，multiplicands 全 0，
-    # 于是残差恒为 0——内容是静音，但比特流结构与真实流完全一致。
+    # codebook 1：residue 的 VQ 书，也兼作 floor1 的 subclass 书（两者都只是
+    # 取码字号）。lookup_type=2，multiplicands 取各维不同的非零值，这样 residue
+    # 落在哪个位置才看得出来——全 0 的话通路写错了输出也一样。
+    # delta 取 2 的负幂，乘出来的残差是精确值；幅度也压得够小，免得 IMDCT
+    # 之后超出 16 位 WAV 的范围——削波会让两边「看起来不一致」，白白误判。
+    mults = [(i % 3) + 1 for i in range(2 * dim)]
     _write_codebook(
-        b, dimensions=1, lengths=[1, 1], lookup_type=2,
-        min_value=0.0, delta_value=0.0, value_bits=1, sequence_flag=0,
-        multiplicands=[0, 0],
+        b, dimensions=dim, lengths=[1, 1], lookup_type=2,
+        min_value=0.0, delta_value=2.0 ** -7, value_bits=2, sequence_flag=0,
+        multiplicands=mults,
     )
 
     # ---- time domain transform ----
@@ -178,7 +183,7 @@ def make_setup(residue_type: int, floor_type: int) -> bytes:
 
     # ---- residue ----
     b.write(0, 6)  # residue count - 1 = 0，即 1 个
-    _write_residue(b, residue_type)
+    _write_residue(b, residue_type, partition_size=partition_size)
 
     # ---- mapping ----
     # 字段顺序：type(16) → submaps flag(1) → coupling flag(1) → reserved(2)
@@ -227,24 +232,25 @@ def _write_codebook(b: BitWriter, dimensions: int, lengths: list[int],
 
 
 def _float32_pack(value: float) -> int:
-    """Vorbis 专用 32 位浮点打包：1 位符号 + 10 位指数 + 21 位尾数，值为 value。"""
+    """Vorbis 专用 32 位浮点打包。
+
+    解出来的值是 `mantissa * 2^(exp - 788)`，其中 mantissa 就是 21 位字段的
+    整数值，**不带隐含的前导 1**。所以要把尾数顶到 [2^20, 2^21) 才不丢精度；
+    若按 IEEE 那样只存小数部分，像 0.25 这种正好落在 2 的整数次幂上的值会编成
+    0，解出来也真的是 0——生成器静默地把整段残差抹平。
+    """
     if value == 0.0:
         return 0
-    sign = 0
-    v = value
-    if v < 0:
-        sign = 1
-        v = -v
-    exp = 0
-    # 把 v 归一化到 [1, 2)
-    while v >= 2.0:
-        v /= 2.0
-        exp += 1
-    while v < 1.0:
-        v *= 2.0
+    sign = 0x80000000 if value < 0 else 0
+    m = abs(float(value))
+    exp = 788
+    while m < (1 << 20):
+        m *= 2.0
         exp -= 1
-    mantissa = int(round(v * (1 << 21))) & 0x1FFFFF
-    return (sign << 31) | (((exp + 788) & 0x3FF) << 21) | mantissa
+    while m >= (1 << 21):
+        m /= 2.0
+        exp += 1
+    return sign | ((exp & 0x7FF) << 21) | (int(round(m)) & 0x1FFFFF)
 
 
 def _write_floor1(b: BitWriter) -> None:
@@ -279,7 +285,8 @@ def _write_floor0(b: BitWriter) -> None:
 
 
 def _write_residue(b: BitWriter, residue_type: int, begin: int = 0,
-                   end: int = 128, partition_size: int = 128) -> None:
+                   end: int = 1 << 20, partition_size: int = 128) -> None:
+    """end 写得足够大，让读方按自己的块长钳到 actual_size，省得两边对不齐。"""
     b.write(residue_type, 16)
     b.write(begin, 24)
     b.write(end, 24)
@@ -292,23 +299,86 @@ def _write_residue(b: BitWriter, residue_type: int, begin: int = 0,
     b.write(1, 8)    # pass 0 用的 codebook 号（即 codebook 1）
 
 
+def floor1_packet(b: BitWriter) -> None:
+    """写一个「floor 已使用」的 floor1 packet。
+
+    multiplier=4 → range = 64，故前两个 Y 各占 ilog(64)-1 = 6 位。取 60 让 floor
+    曲线接近满幅——曲线若为 0，residue 乘上去就什么都不剩，通路的对错看不出来。
+    X 列表是 [0, 16, 8]，排序后为 [0, 8, 16]，于是第三个点的邻居是前两个点，
+    pred 落在它们之间；写 1 让 step2_flag 置位，曲线才真正被画出来。
+    """
+    b.write(1, 1)    # nonzero
+    b.write(60, 6)   # finalY[0]
+    b.write(60, 6)   # finalY[1]
+    b.write(1, 1)    # subclass book 1 的码字 1 → val = 1 ≠ 0
+
+
+def residue_payload(b: BitWriter, channels: int, residue_type: int,
+                    part_read: int, partition_size: int, dim: int) -> None:
+    """写 residue 数据。
+
+    cascade 只给 classification 0 配了 pass 0 的书，所以每个 partition 的
+    classbook 码字固定写 0。type 2 多声道走交错路径，classbook 每 partition 只读
+    一个；type 0/1 走通用路径，**每个声道各读一个**——位流长度因此不同。
+    """
+    def vq_codewords():
+        k = 0
+        while k < partition_size:
+            b.write(1, 1)   # VQ 码字 1
+            k += dim
+
+    for _ in range(part_read):
+        if residue_type == 2 and channels > 1:
+            b.write(0, 1)                       # classbook：每 partition 一个
+            vq_codewords()                      # 交错路径按 part_size 分完为止
+        else:
+            for _ in range(channels):
+                b.write(0, 1)                   # classbook：每声道一个
+            for _ in range(channels):
+                vq_codewords()
+
+
 def build(sample_rate: int, channels: int, residue_type: int,
-          floor_type: int, n_audio_packets: int = 4, trim: int = 0) -> bytes:
-    """拼出完整的 OGG 流。音频 packet 只带 mode 号与「floor 未使用」位，内容为静音。"""
+          floor_type: int, n_audio_packets: int = 4, trim: int = 0,
+          active: bool = False, partition_size: int = 128,
+          dim: int = 1, blocksize_exp: int = 0) -> bytes:
+    """拼出完整的 OGG 流。
+
+    active=False 时音频 packet 只带「floor 未使用」位，内容为静音——用来验证
+    容器与头部；active=True 时写入真实的 floor 与 residue 数据，残差通路才会被
+    走到。
+    """
     serial = 0x12345678
-    bs0_exp = 6    # 64
-    bs1_exp = 6    # 64（本测试只用短块）
+    if blocksize_exp == 0:
+        blocksize_exp = 8 if active else 6
+    bs_exp = blocksize_exp
 
     pages = []
     pages.append(make_page(serial, 0, 0x02, 0,
-                           [ident_header(channels, sample_rate, bs0_exp, bs1_exp)]))
+                           [ident_header(channels, sample_rate, bs_exp, bs_exp)]))
     pages.append(make_page(serial, 1, 0x00, 0,
-                           [comment_header(), make_setup(residue_type, floor_type)]))
+                           [comment_header(),
+                            make_setup(residue_type, floor_type,
+                                       partition_size, dim)]))
 
-    # 音频 packet：mode 号（只有 1 个 mode，占 0 位）+ 每声道 1 位「floor 未使用」
+    # 音频 packet：首 bit 是 packet type（0 = audio），其后是 mode 号（只有 1 个
+    # mode，占 0 位），再往后才是各声道的数据。mode 的 blockflag=0，所以不必写
+    # prev/next 窗标志。
     pkt = BitWriter()
-    for _ in range(channels):
-        pkt.write(0, 1)
+    pkt.write(0, 1)   # packet type
+    if not active:
+        for _ in range(channels):
+            pkt.write(0, 1)
+    else:
+        for _ in range(channels):
+            floor1_packet(pkt)
+        # 解 residue 时传进去的是 n2 = 块长的一半；type 2 的系数每声道两份，
+        # 读方据此再把 actual_size 翻倍，partition 数也跟着翻倍。
+        n_res = (1 << bs_exp) // 2
+        actual_size = n_res * 2 if residue_type == 2 else n_res
+        part_read = actual_size // partition_size
+        residue_payload(pkt, channels, residue_type, part_read,
+                        partition_size, dim)
     audio = pkt.flush()
 
     # granule position 是「到该页为止已产出的 PCM 帧数」。Vorbis 的第一个音频
@@ -316,7 +386,7 @@ def build(sample_rate: int, channels: int, residue_type: int,
     # (k-1) × blocksize/2 帧。
     # trim 把末页 granule 调小，制造「最后一个块只用到一部分」的情形——真实文件
     # 几乎总是这样，也正是 granule 裁剪真正起作用的场合。
-    block = 1 << bs0_exp
+    block = 1 << bs_exp
     seq = 2
     for k in range(n_audio_packets):
         granule = k * (block // 2)
@@ -347,14 +417,22 @@ def main() -> int:
     ap.add_argument("--packets", type=int, default=4, help="音频 packet 数")
     ap.add_argument("--trim", type=int, default=0,
                     help="末页 granule 减去的样本数，用于验证尾部裁剪")
+    ap.add_argument("--active", action="store_true",
+                    help="写入真实 floor 与 residue 数据，而不是静音")
+    ap.add_argument("--partition-size", type=int, default=128)
+    ap.add_argument("--dim", type=int, default=1, help="residue VQ 书的维度")
+    ap.add_argument("--blocksize-exp", type=int, default=0,
+                    help="块长 2 的幂次（0 表示按 active 自动选）")
     args = ap.parse_args()
 
     data = build(args.rate, args.channels, args.residue, args.floor,
-                 args.packets, args.trim)
+                 args.packets, args.trim, args.active,
+                 args.partition_size, args.dim, args.blocksize_exp)
     Path(args.out).write_bytes(data)
     print(f"已写入 {args.out}：{len(data)} 字节，"
           f"floor {args.floor}，residue {args.residue}，"
-          f"{args.channels} 声道 {args.rate} Hz")
+          f"{args.channels} 声道 {args.rate} Hz"
+          f"{'，含数据' if args.active else '，静音'}")
     return 0
 
 

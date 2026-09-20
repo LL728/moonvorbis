@@ -225,3 +225,31 @@ pub fn Codebook::decode_vq(
   }
   Ok(())
 }
+
+///|
+/// 同 decode_vq，但分量之间隔着 step 个位置摆放，用于 residue type 0 的交织写法。
+pub fn Codebook::decode_vq_step(
+  self : Codebook,
+  br : BitReader,
+  target : Array[Float],
+  offset : Int,
+  len : Int,
+  step : Int,
+) -> Result[Unit, String] {
+  if self.lookup_type == 0 {
+    return Err("codebook has no lookup table")
+  }
+  let z = match self.decode_scalar(br) {
+    Ok(z) => z
+    Err(e) => return Err(e)
+  }
+  let n = if len > self.dimensions { self.dimensions } else { len }
+  let base = z * self.dimensions
+  for i in 0..<n {
+    let at = offset + i * step
+    if at >= 0 && at < target.length() {
+      target[at] = target[at] + self.multiplicands_f[base + i]
+    }
+  }
+  Ok(())
+}

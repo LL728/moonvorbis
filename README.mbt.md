@@ -11,7 +11,7 @@
 - **Vorbis 头部**：identification / comment / setup 三个包头
 - **Codebook**：Huffman 解码、VQ lookup type 1/2、ordered 与 sparse 编码
 - **Floor 1**：曲线解码与合成
-- **Residue**：type 1 / type 2，含多声道交错 VQ
+- **Residue**：type 0 / type 1 / type 2，含多声道交错 VQ
 - **立体声耦合**：magnitude/angle 反变换
 - **IMDCT 与重叠相加**：含长短块（window switching）切换
 - **输出**：多声道 16-bit PCM WAV
@@ -69,6 +69,9 @@ Builtins：Chrome / Edge 130+、Firefox 134+，Safari 目前不支持。
 | `wasm_api.mbt` | WASM 导出接口 |
 | `cmd/main/` | 命令行入口 |
 | `tools/verify.py` | 对 libvorbis 的交叉验证脚本 |
+| `tools/vorbisgen.py` | 按规范直接拼出 OGG/Vorbis 测试流 |
+| `tools/granule_sweep.py` | 扫 granule position 裁剪行为 |
+| `tools/residue_sweep.py` | 扫 residue 各条通路 |
 | `tools/wasm_contract.py` | 静态校验 wasm 的导入/导出契约 |
 | `demo/headless-test.html` | 无头浏览器冒烟测试 |
 
@@ -96,6 +99,17 @@ python tools/verify.py song.ogg
 
 需要 `numpy` 与 `soundfile`。
 
+真实文件覆盖不到的分支得自己造素材。`tools/vorbisgen.py` 按规范直接拼
+比特流，造出的流同时交给本解码器和 libvorbis，两边一致才算读对：
+
+```bash
+python tools/granule_sweep.py    # 12 组 packet 数 × 尾部裁剪量
+python tools/residue_sweep.py    # residue type 0/1 的单声道与多声道
+```
+
+libvorbis 自 1.0 起只用 floor 1 与 residue type 1/2，官方也没有覆盖全部规范的
+测试向量，这两个脚本补的就是这部分。
+
 WASM 侧另有两个检查。`tools/wasm_contract.py` 静态解析二进制，确认导出
 `decode_ogg_base64` 的签名是 `String -> String`，且除引擎内置外没有任何导入
 （`demo/main.js` 用的是空 imports 对象，多一条导入实例化就会失败）。
@@ -118,5 +132,5 @@ msedge --headless=new --virtual-time-budget=20000 \
 
 ## 限制
 
-- 尚未支持 floor 0、residue type 0、lattice codebook
+- 尚未支持 floor 0 与 lattice codebook（sequence_p）
 - 只做解码，不做编码

@@ -104,37 +104,60 @@ pub fn Residue::decode(
     }
   }
 
-  // 每个 partition 的 classification；多留 classwords 个位置避免填充越界
-  let classifications : Array[Int] = []
-  for _ in 0..<(part_read + classwords) {
-    classifications.push(0)
+  // 每个 partition 的 classification。通用路径下每个声道各有一份——classbook
+  // 码字是逐声道读的；只有 type 2 的交错路径才共用一个声道的那份。
+  // 多留 classwords 个位置避免填充越界。
+  let class_of : Array[Array[Int]] = []
+  for _ in 0..<ch {
+    let row : Array[Int] = []
+    for _ in 0..<(part_read + classwords) {
+      row.push(0)
+    }
+    class_of.push(row)
   }
+
+  let interleaved = rtype == 2 && ch > 1
 
   for pass in 0..<8 {
     let mut pcount = 0
     while pcount < part_read {
       if pass == 0 {
-        let temp = match classbook.decode_scalar(br) {
-          Ok(t) => t
-          Err(e) => return Err(e)
-        }
-        let mut q = temp
-        let mut k = 0
-        while k < classwords {
-          classifications[pcount + classwords - 1 - k] = q %
-            self.classifications
-          q = q / self.classifications
-          k += 1
+        if interleaved {
+          let temp = match classbook.decode_scalar(br) {
+            Ok(t) => t
+            Err(e) => return Err(e)
+          }
+          spread_classification(
+            class_of[0],
+            pcount,
+            classwords,
+            temp,
+            self.classifications,
+          )
+        } else {
+          for j in 0..<ch {
+            let temp = match classbook.decode_scalar(br) {
+              Ok(t) => t
+              Err(e) => return Err(e)
+            }
+            spread_classification(
+              class_of[j],
+              pcount,
+              classwords,
+              temp,
+              self.classifications,
+            )
+          }
         }
       }
       let mut i = 0
       while i < classwords && pcount < part_read {
-        let c = classifications[pcount]
-        let b = self.residue_books[c][pass]
-        if b >= 0 {
-          let book = codebooks[b]
-          if rtype == 2 && ch > 1 {
-            // type 2 多声道：VQ 系数按声道交错分配
+        if interleaved {
+          // type 2 多声道：VQ 系数按声道交错分配
+          let c = class_of[0][pcount]
+          let b = self.residue_books[c][pass]
+          if b >= 0 {
+            let book = codebooks[b]
             let z = limit_begin + pcount * self.partition_size
             let mut c_inter = z % ch
             let mut p_inter = z / ch
@@ -164,30 +187,87 @@ pub fn Residue::decode(
               }
               k += dim
             }
-          } else {
-            if rtype == 0 {
-              return Err("residue type 0 not yet supported")
-            }
-            let offset = limit_begin + pcount * self.partition_size
-            let mut k = 0
-            while k < self.partition_size {
+          }
+        } else {
+          let offset = limit_begin + pcount * self.partition_size
+          for j in 0..<ch {
+            let c = class_of[j][pcount]
+            let b = self.residue_books[c][pass]
+            if b >= 0 {
               match
-                book.decode_vq(
+                decode_partition(
+                  codebooks[b],
                   br,
-                  targets[0],
-                  offset + k,
-                  self.partition_size - k,
+                  targets[j],
+                  offset,
+                  self.partition_size,
+                  rtype,
                 ) {
                 Ok(_) => ()
                 Err(e) => return Err(e)
               }
-              k += book.dimensions
             }
           }
         }
         pcount += 1
         i += 1
       }
+    }
+  }
+  Ok(())
+}
+
+///|
+/// 把一个 classbook 码字按 classification 数展开成 classwords 个数字，
+/// 写在 row 的 pcount 起、由高到低的位置上。
+fn spread_classification(
+  row : Array[Int],
+  pcount : Int,
+  classwords : Int,
+  codeword : Int,
+  count : Int,
+) -> Unit {
+  let mut q = codeword
+  let mut k = 0
+  while k < classwords {
+    row[pcount + classwords - 1 - k] = q % count
+    q = q / count
+    k += 1
+  }
+}
+
+///|
+/// 解码一个 partition，把结果累加进 target。
+///
+/// type 0 是交织写法：每个码字的分量按下标步进而非相邻地摆放，step 个码字
+/// 交错铺满整个 partition。type 1 及单声道 type 2 则是顺序摆放。
+fn decode_partition(
+  book : Codebook,
+  br : BitReader,
+  target : Array[Float],
+  offset : Int,
+  part_size : Int,
+  rtype : Int,
+) -> Result[Unit, String] {
+  if book.dimensions <= 0 {
+    return Err("codebook dimensions is zero")
+  }
+  if rtype == 0 {
+    let step = part_size / book.dimensions
+    for k in 0..<step {
+      match book.decode_vq_step(br, target, offset + k, part_size - k, step) {
+        Ok(_) => ()
+        Err(e) => return Err(e)
+      }
+    }
+  } else {
+    let mut k = 0
+    while k < part_size {
+      match book.decode_vq(br, target, offset + k, part_size - k) {
+        Ok(_) => ()
+        Err(e) => return Err(e)
+      }
+      k += book.dimensions
     }
   }
   Ok(())
