@@ -73,7 +73,10 @@ def find_browser(explicit):
 
 
 def shoot(browser, url, out_path, profile_dir, width, height, budget, timeout):
-    """抓一帧。每次都用独立的 user-data-dir，否则并发/连续的实例会互相锁住。"""
+    """抓一帧，成功返回 True。每次都用独立的 user-data-dir，否则连续的实例
+    会互相锁住。"""
+    if os.path.exists(out_path):
+        os.remove(out_path)
     cmd = [
         browser,
         "--headless=new",
@@ -83,6 +86,7 @@ def shoot(browser, url, out_path, profile_dir, width, height, budget, timeout):
         "--no-first-run",
         "--no-default-browser-check",
         "--disable-extensions",
+        "--disable-dev-shm-usage",
         f"--user-data-dir={profile_dir}",
         f"--window-size={width},{height}",
         f"--virtual-time-budget={budget}",
@@ -98,9 +102,8 @@ def shoot(browser, url, out_path, profile_dir, width, height, budget, timeout):
             check=False,
         )
     except subprocess.TimeoutExpired:
-        raise SystemExit(f"截图超时（{timeout}s）：t={url}")
-    if not os.path.exists(out_path):
-        raise SystemExit(f"截图没有产出文件：t={url}")
+        return False
+    return os.path.exists(out_path) and os.path.getsize(out_path) > 0
 
 
 def content_box(paths, fallback):
@@ -139,7 +142,8 @@ def main():
     ap.add_argument("--width", type=int, default=720)
     ap.add_argument("--height", type=int, default=780)
     ap.add_argument("--budget", type=int, default=8000, help="虚拟时间预算（毫秒）")
-    ap.add_argument("--timeout", type=int, default=60, help="单帧截图超时（秒）")
+    ap.add_argument("--timeout", type=int, default=90, help="单帧截图超时（秒）")
+    ap.add_argument("--retries", type=int, default=2, help="单帧截图失败后的重试次数")
     ap.add_argument("--scale", type=int, default=560, help="输出宽度（像素）")
     ap.add_argument("--colors", type=int, default=64)
     args = ap.parse_args()
@@ -151,17 +155,25 @@ def main():
     shots = []
     for index, (t, _) in enumerate(FRAMES):
         path = tmp / f"f{index:03d}.png"
-        # 每帧换一个 profile 目录，避免上一个实例的锁没释放就起下一个
-        shoot(
-            browser,
-            f"{args.base}?t={t}",
-            path,
-            tmp / f"profile{index:03d}",
-            args.width,
-            args.height,
-            args.budget,
-            args.timeout,
-        )
+        url = f"{args.base}?t={t}"
+        # 无头浏览器偶发卡住不出图，重试时换一个 profile 目录——上一次
+        # 那个可能还留着锁
+        for attempt in range(args.retries + 1):
+            ok = shoot(
+                browser,
+                url,
+                path,
+                tmp / f"profile{index:03d}-{attempt}",
+                args.width,
+                args.height,
+                args.budget,
+                args.timeout,
+            )
+            if ok:
+                break
+            print(f"    第 {attempt + 1} 次截图没出图，重试", flush=True)
+        else:
+            raise SystemExit(f"截图反复失败：t={t}ms")
         shots.append(path)
         print(f"  帧 {index + 1}/{len(FRAMES)}  t={t}ms", flush=True)
 

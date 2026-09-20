@@ -5,6 +5,9 @@
 
 支持解码为标准 WAV、命令行批量转换，以及编译成 WebAssembly 在浏览器内直接播放。
 
+项目主页：<https://ll728.github.io/moonvorbis/> —— 在线演示在
+<https://ll728.github.io/moonvorbis/demo/>。
+
 ## 功能
 
 - **OGG 容器**：页解析、segment table 重组、CRC-32 校验、packet 组装
@@ -82,6 +85,7 @@ Builtins：Chrome / Edge 130+、Firefox 134+，Safari 目前不支持。
 | `wav.mbt` | WAV 序列化 |
 | `wasm_api.mbt` | WASM 导出接口 |
 | `cmd/main/` | 命令行入口 |
+| `index.html` | 项目主页（GitHub Pages 的根路径） |
 | `tools/verify.py` | 对 libvorbis 的交叉验证脚本 |
 | `tools/vorbisgen.py` | 按规范直接拼出 OGG/Vorbis 测试流 |
 | `tools/granule_sweep.py` | 扫 granule position 裁剪行为 |

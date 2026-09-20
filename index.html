@@ -1,11 +1,530 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<title>moonvorbis</title>
-<meta http-equiv="refresh" content="0; url=./demo/">
-</head>
-<body>
-<p>纯 MoonBit 实现的 OGG/Vorbis 解码器 —— <a href="./demo/">打开浏览器 demo</a></p>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>moonvorbis — 纯 MoonBit 实现的 OGG/Vorbis 解码器</title>
+    <meta
+      name="description"
+      content="纯 MoonBit 实现的 OGG/Vorbis 音频解码器，不依赖任何 C 库或系统编解码器。可编译为 WebAssembly 在浏览器内直接解码。"
+    />
+    <meta property="og:title" content="moonvorbis — 纯 MoonBit 的 OGG/Vorbis 解码器" />
+    <meta
+      property="og:description"
+      content="从字节流到 PCM 全部由 MoonBit 完成。floor / residue / codebook 的全部形式已走通，与 libvorbis 逐样本对照。"
+    />
+    <meta property="og:type" content="website" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --fg: #1b1f24;
+        --muted: #5b6472;
+        --line: #d6dbe3;
+        --accent: #2f6feb;
+        --accent-soft: #eaf1fe;
+        --bg: #ffffff;
+        --panel: #f7f8fa;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --fg: #e6e9ef;
+          --muted: #9aa4b2;
+          --line: #333a45;
+          --accent: #6ea8ff;
+          --accent-soft: #1d2836;
+          --bg: #14171c;
+          --panel: #1b1f26;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        font: 16px/1.7 system-ui, -apple-system, "Segoe UI", "Microsoft YaHei",
+          sans-serif;
+        color: var(--fg);
+        background: var(--bg);
+      }
+      .wrap {
+        width: 100%;
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 0 1.25rem;
+      }
+
+      /* ---------- 顶栏 ---------- */
+      header {
+        border-bottom: 1px solid var(--line);
+        position: sticky;
+        top: 0;
+        background: color-mix(in srgb, var(--bg) 88%, transparent);
+        backdrop-filter: blur(8px);
+        z-index: 10;
+      }
+      header .wrap {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+        height: 58px;
+      }
+      .brand {
+        font-weight: 650;
+        letter-spacing: -0.01em;
+        margin-right: auto;
+      }
+      .brand span {
+        color: var(--muted);
+        font-weight: 400;
+        margin-left: 0.5rem;
+        font-size: 0.875rem;
+      }
+      nav {
+        display: flex;
+        gap: 1.25rem;
+        font-size: 0.9375rem;
+      }
+      nav a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav a:hover {
+        color: var(--accent);
+      }
+      @media (max-width: 640px) {
+        nav {
+          display: none;
+        }
+      }
+
+      /* ---------- 通用 ---------- */
+      a {
+        color: var(--accent);
+      }
+      section {
+        padding: 3.25rem 0;
+        border-bottom: 1px solid var(--line);
+      }
+      section:last-of-type {
+        border-bottom: none;
+      }
+      h2 {
+        font-size: 1.4rem;
+        margin: 0 0 0.4rem;
+        letter-spacing: -0.01em;
+      }
+      .lead {
+        color: var(--muted);
+        margin: 0 0 1.75rem;
+        max-width: 62ch;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: 0.9em;
+      }
+      p code,
+      li code,
+      td code {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 0.05em 0.35em;
+      }
+      pre {
+        margin: 0 0 1rem;
+        padding: 0.9rem 1.1rem;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        overflow-x: auto;
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: 0.875rem;
+        line-height: 1.6;
+      }
+      pre code {
+        background: none;
+        border: none;
+        padding: 0;
+      }
+
+      /* ---------- 首屏 ---------- */
+      .hero {
+        padding: 4rem 0 3.5rem;
+      }
+      .eyebrow {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin-bottom: 1.25rem;
+      }
+      .tag {
+        font-size: 0.75rem;
+        letter-spacing: 0.02em;
+        color: var(--accent);
+        background: var(--accent-soft);
+        border-radius: 999px;
+        padding: 0.2rem 0.7rem;
+      }
+      h1 {
+        font-size: clamp(1.9rem, 4.2vw, 2.75rem);
+        line-height: 1.25;
+        letter-spacing: -0.02em;
+        margin: 0 0 1rem;
+      }
+      h1 em {
+        font-style: normal;
+        color: var(--accent);
+      }
+      .hero p {
+        font-size: 1.0625rem;
+        color: var(--muted);
+        margin: 0 0 2rem;
+        max-width: 56ch;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+      }
+      .btn {
+        display: inline-block;
+        padding: 0.55rem 1.15rem;
+        border-radius: 8px;
+        text-decoration: none;
+        font-size: 0.9375rem;
+        border: 1px solid transparent;
+        transition: opacity 0.15s, border-color 0.15s;
+      }
+      .btn:hover {
+        opacity: 0.85;
+      }
+      .btn.primary {
+        background: var(--accent);
+        color: #fff;
+      }
+      .btn.ghost {
+        border-color: var(--line);
+        color: var(--fg);
+      }
+      .btn.ghost:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+        opacity: 1;
+      }
+
+      /* ---------- 卡片 ---------- */
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 0.9rem;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 1.05rem 1.15rem;
+      }
+      .card h3 {
+        margin: 0 0 0.3rem;
+        font-size: 0.9375rem;
+        font-weight: 600;
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.875rem;
+        line-height: 1.6;
+      }
+
+      /* ---------- 数据 ---------- */
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 0.9rem;
+        margin-bottom: 1.75rem;
+      }
+      .stat {
+        border-left: 2px solid var(--accent);
+        padding-left: 0.9rem;
+      }
+      .stat b {
+        display: block;
+        font-size: 1.5rem;
+        font-weight: 650;
+        letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums;
+      }
+      .stat span {
+        color: var(--muted);
+        font-size: 0.8125rem;
+      }
+
+      /* ---------- 图片 ---------- */
+      figure {
+        margin: 0;
+      }
+      figure img {
+        display: block;
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+      }
+      figcaption {
+        color: var(--muted);
+        font-size: 0.875rem;
+        margin-top: 0.7rem;
+      }
+
+      /* ---------- 表格 ---------- */
+      /* 窄屏下表格的「文件名」列一旦不换行就会把整页撑宽，横向溢出会连带
+         影响上面的文字。让容器自己滚，页面宽度守住视口。 */
+      .scroll {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        min-width: 460px;
+        border-collapse: collapse;
+        font-size: 0.9375rem;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 0.5rem 0.75rem;
+        border-bottom: 1px solid var(--line);
+      }
+      th {
+        color: var(--muted);
+        font-weight: 600;
+        font-size: 0.8125rem;
+        letter-spacing: 0.03em;
+      }
+      td:first-child {
+        width: 34%;
+      }
+
+      /* ---------- 页脚 ---------- */
+      footer {
+        padding: 2rem 0 3rem;
+        color: var(--muted);
+        font-size: 0.875rem;
+      }
+      footer .wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <div class="brand">moonvorbis<span>纯 MoonBit 的 OGG/Vorbis 解码器</span></div>
+        <nav>
+          <a href="#features">特性</a>
+          <a href="#verify">验证</a>
+          <a href="#start">快速开始</a>
+          <a href="#layout">结构</a>
+          <a href="./demo/">在线演示</a>
+          <a href="https://github.com/LL728/moonvorbis">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero wrap">
+        <div class="eyebrow">
+          <span class="tag">纯 MoonBit</span>
+          <span class="tag">零 C 依赖</span>
+          <span class="tag">WebAssembly</span>
+        </div>
+        <h1>从字节流到 PCM，<br />全部由 <em>MoonBit</em> 完成</h1>
+        <p>
+          moonvorbis 是一个完整的 OGG/Vorbis 音频解码器。它不链接 libvorbis、
+          libogg 或任何系统编解码器，容器解析、熵解码、IMDCT 与重叠相加都在
+          MoonBit 里实现，也能编译成 WebAssembly 在浏览器内直接解码。
+        </p>
+        <div class="actions">
+          <a class="btn primary" href="./demo/">打开在线演示</a>
+          <a class="btn ghost" href="https://github.com/LL728/moonvorbis"
+            >查看源码</a
+          >
+        </div>
+      </section>
+
+      <section class="wrap">
+        <figure>
+          <img src="./demo/demo.gif" alt="浏览器中解码 sample.ogg 的演示" />
+          <figcaption>
+            浏览器内加载 wasm、选中 <code>sample.ogg</code>、解码并画出波形。
+            这段动画由 <code>tools/make_demo_gif.py</code> 对
+            <code>demo/record.html</code> 逐帧截图合成，波形与元信息都来自真实
+            解码结果，不含预置画面。
+          </figcaption>
+        </figure>
+      </section>
+
+      <section id="features" class="wrap">
+        <h2>实现范围</h2>
+        <p class="lead">
+          Vorbis I 解码通路上 floor 的两种形式、residue 的三种形式、codebook
+          的三种 lookup 全部走通。
+        </p>
+        <div class="grid">
+          <div class="card">
+            <h3>OGG 容器</h3>
+            <p>
+              页解析、segment table 重组、CRC-32 校验、跨页 packet 组装，并按
+              granule position 裁剪输出。
+            </p>
+          </div>
+          <div class="card">
+            <h3>Codebook</h3>
+            <p>
+              Huffman 解码，VQ lookup type 1 / 2，<code>sequence_p</code>
+              累加，ordered 与 sparse 两种码长编码。
+            </p>
+          </div>
+          <div class="card">
+            <h3>Floor 0 与 Floor 1</h3>
+            <p>
+              floor 1 的关键点插值，floor 0 的 LSP 系数与幅度按 Bark
+              刻度还原增益曲线。
+            </p>
+          </div>
+          <div class="card">
+            <h3>Residue 0 / 1 / 2</h3>
+            <p>
+              三种类型齐全，含 type 2 的多声道交错 VQ——真实立体声文件走的正是
+              这条路径。
+            </p>
+          </div>
+          <div class="card">
+            <h3>立体声耦合</h3>
+            <p>magnitude / angle 反变换，由耦合声道还原出左右声道。</p>
+          </div>
+          <div class="card">
+            <h3>IMDCT 与重叠相加</h3>
+            <p>含长短块切换，窗函数与块边界按规范处理。</p>
+          </div>
+          <div class="card">
+            <h3>WAV 输出</h3>
+            <p>多声道 16-bit PCM，命令行与 wasm 共用同一条解码路径。</p>
+          </div>
+          <div class="card">
+            <h3>WebAssembly</h3>
+            <p>
+              导出 <code>decode_ogg_base64</code>，浏览器里本地解码，音频不上传。
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="verify" class="wrap">
+        <h2>怎么知道它解对了</h2>
+        <p class="lead">
+          单元测试只能证明「实现与自己的理解自洽」。真正提供独立性的是第二个
+          实现——所有素材都同时交给 moonvorbis 和 libvorbis，两边一致才算读对。
+        </p>
+        <div class="stats">
+          <div class="stat"><b>69</b><span>单元测试</span></div>
+          <div class="stat"><b>35</b><span>组自造素材，相关系数 1.000000</span></div>
+          <div class="stat"><b>6</b><span>个真实文件，相关系数 ≥0.9987</span></div>
+          <div class="stat"><b>0</b><span>第三方解码依赖</span></div>
+        </div>
+        <p class="lead" style="margin-bottom: 0">
+          真实文件覆盖不到的分支得自己造素材：<code>tools/vorbisgen.py</code>
+          按规范直接拼比特流，覆盖 granule 裁剪、residue 各类型与
+          <code>sequence_p</code>、floor 0 的奇数阶与偶数阶。排查过程写在
+          <a href="./docs/stb-vorbis-cross-validation.md"
+            >《当 52 个测试全绿，却解不出一段正弦波》</a
+          >里——那里记了七处规范偏差与一处流程陷阱，也包括一处把错误结论写进
+          文档、后来又被真实文件推翻的经过。
+        </p>
+      </section>
+
+      <section id="start" class="wrap">
+        <h2>快速开始</h2>
+        <p class="lead">
+          需要 MoonBit 工具链。本机没有 C 编译器也能跑，走 wasm-gc 后端即可。
+        </p>
+        <pre><code>git clone https://github.com/LL728/moonvorbis
+cd moonvorbis
+moon run cmd/main --target wasm-gc -- input.ogg output.wav</code></pre>
+        <p class="lead" style="margin-top: 1.5rem">
+          省略输出路径时写入 <code>input.ogg.wav</code>。要在浏览器里跑，重新
+          构建 wasm 后起一个静态服务器：
+        </p>
+        <pre><code>moon build --target wasm-gc --release
+cp _build/wasm-gc/release/build/moonvorbis.wasm demo/
+python -m http.server
+# 打开 http://localhost:8000/demo/</code></pre>
+        <p class="lead" style="margin-top: 1.5rem; margin-bottom: 0">
+          浏览器需要支持 WebAssembly JS String Builtins：Chrome / Edge 130+、
+          Firefox 134+，Safari 目前不支持。
+        </p>
+      </section>
+
+      <section id="layout" class="wrap">
+        <h2>代码结构</h2>
+        <p class="lead">解码按 Vorbis I 规范的分层组织，每一层单独成文件。</p>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>文件</th>
+                <th>职责</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><code>bitreader.mbt</code></td><td>LSB-first 位读取器，带越界检查</td></tr>
+              <tr><td><code>ogg_crc.mbt</code></td><td>OGG 页校验用的 CRC-32</td></tr>
+              <tr><td><code>ogg_page.mbt</code></td><td>页头解析与校验</td></tr>
+              <tr><td><code>ogg_packet.mbt</code></td><td>跨页 packet 组装</td></tr>
+              <tr><td><code>vorbis_info.mbt</code></td><td>identification 头</td></tr>
+              <tr><td><code>vorbis_comment.mbt</code></td><td>comment 头</td></tr>
+              <tr><td><code>vorbis_setup.mbt</code></td><td>setup 头，聚合下列子结构</td></tr>
+              <tr><td><code>codebook.mbt</code></td><td>codebook 与 Huffman/VQ 解码</td></tr>
+              <tr><td><code>floor0.mbt</code> / <code>floor1.mbt</code></td><td>两种 floor 的解码与合成</td></tr>
+              <tr><td><code>residue.mbt</code></td><td>residue 配置与解码</td></tr>
+              <tr><td><code>mapping.mbt</code></td><td>channel mapping 与耦合</td></tr>
+              <tr><td><code>mdct.mbt</code> / <code>window.mbt</code></td><td>IMDCT 与窗函数</td></tr>
+              <tr><td><code>decoder.mbt</code></td><td>解码主循环</td></tr>
+              <tr><td><code>vorbis_stream.mbt</code></td><td>高层编排：字节流 → PCM</td></tr>
+              <tr><td><code>wav.mbt</code></td><td>WAV 序列化</td></tr>
+              <tr><td><code>wasm_api.mbt</code></td><td>WASM 导出接口</td></tr>
+              <tr><td><code>tools/</code></td><td>交叉验证脚本与素材生成器</td></tr>
+              <tr><td><code>demo/</code></td><td>浏览器演示页与冒烟测试</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="wrap">
+        <h2>限制</h2>
+        <p class="lead" style="margin-bottom: 0">
+          只做解码，不做编码。第三方依赖只有 <code>moonbitlang/x</code> 的
+          <code>fs</code>，且只被命令行入口用来读写文件——解码库本身不依赖它，
+          wasm 产物除引擎内置外没有任何导入。Safari 尚不支持所需的 wasm
+          字符串内置。
+        </p>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <span>Apache-2.0</span>
+        <a href="https://github.com/LL728/moonvorbis">GitHub</a>
+        <a href="./demo/">在线演示</a>
+        <a href="./docs/stb-vorbis-cross-validation.md">开发记录</a>
+        <a href="https://github.com/LL728/moonvorbis/blob/master/README.md"
+          >README</a
+        >
+      </div>
+    </footer>
+  </body>
 </html>
