@@ -64,12 +64,24 @@ Builtins（Chrome / Edge 130+）。
 | `wav.mbt` | WAV 序列化 |
 | `wasm_api.mbt` | WASM 导出接口 |
 | `cmd/main/` | 命令行入口 |
+| `tools/verify.py` | 对 libvorbis 的交叉验证脚本 |
 
 ## 测试
 
 ```bash
 moon test
 ```
+
+单元测试验证的是「实现与理解自洽」，抓不到规范理解本身的偏差。作为补充，
+`tools/verify.py` 从零生成已知内容的 OGG、用本解码器解出 WAV，再和 libvorbis
+的输出比较相关系数与 RMS 误差：
+
+```bash
+python tools/verify.py --stereo            # 相关系数 0.9999
+python tools/verify.py --stereo --noise    # 相关系数 0.9970
+```
+
+需要 `numpy` 与 `soundfile`。
 
 ## 开发记录
 
