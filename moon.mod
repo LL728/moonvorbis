@@ -2,7 +2,7 @@ name = "LL728/moonvorbis"
 
 version = "0.1.0"
 
-readme = "README.mbt.md"
+readme = "README.md"
 
 repository = "https://github.com/LL728/moonvorbis"
 
