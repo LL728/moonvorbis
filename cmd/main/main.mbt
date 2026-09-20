@@ -22,7 +22,7 @@ fn main {
         println(
           "采样率: \{stream.sample_rate()} Hz, 声道: \{stream.channels()}, 样本: \{stream.pcm().length()}",
         )
-        let wav = @moonvorbis.wav_encode_pcm16_mono(
+        let wav = @moonvorbis.wav_encode_pcm16(
           stream.pcm(),
           stream.sample_rate(),
         )

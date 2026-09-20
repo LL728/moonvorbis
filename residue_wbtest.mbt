@@ -73,7 +73,7 @@ test "residue decode" {
   for _ in 0..<4 {
     target.push(0)
   }
-  match residue.decode(BitReader::new(b"\x00"), [cb0, cb1], target, 4) {
+  match residue.decode(BitReader::new(b"\x00"), [cb0, cb1], [target], 4) {
     Ok(_) => ()
     Err(e) => @test.fail(e)
   }

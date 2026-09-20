@@ -73,18 +73,20 @@ pub fn Residue::parse(br : BitReader) -> Result[Residue, String] {
 }
 
 ///|
-/// 解码 residue（单声道，type 1/2），把残差累加到 target。
+/// 解码 residue，把残差累加到各声道 target。
 /// `n` 是半块大小；type 2 的 actual_size 为 n*2，其余为 n。
+/// type 2 且多声道时，VQ 系数按声道交错分配（立体声耦合）。
 pub fn Residue::decode(
   self : Residue,
   br : BitReader,
   codebooks : Array[Codebook],
-  target : Array[Float],
+  targets : Array[Array[Float]],
   n : Int,
 ) -> Result[Unit, String] {
   let rtype = self.residue_type
   let classbook = codebooks[self.classbook]
   let classwords = classbook.dimensions
+  let ch = targets.length()
   let actual_size = if rtype == 2 { n * 2 } else { n }
   let limit_begin = if self.begin < actual_size {
     self.begin
@@ -95,8 +97,11 @@ pub fn Residue::decode(
   let n_read = limit_end - limit_begin
   let part_read = n_read / self.partition_size
 
-  for i in 0..<actual_size {
-    target[i] = 0
+  let clear_len = if ch > 1 { n } else { actual_size }
+  for c in 0..<ch {
+    for i in 0..<clear_len {
+      targets[c][i] = 0
+    }
   }
 
   // 每个 partition 的 classification；多留 classwords 个位置避免填充越界
@@ -127,19 +132,57 @@ pub fn Residue::decode(
         let c = classifications[pcount]
         let b = self.residue_books[c][pass]
         if b >= 0 {
-          let offset = limit_begin + pcount * self.partition_size
           let book = codebooks[b]
-          if rtype == 0 {
-            return Err("residue type 0 not yet supported")
-          }
-          let mut k = 0
-          while k < self.partition_size {
-            match
-              book.decode_vq(br, target, offset + k, self.partition_size - k) {
-              Ok(_) => ()
-              Err(e) => return Err(e)
+          if rtype == 2 && ch > 1 {
+            // type 2 多声道：VQ 系数按声道交错分配
+            let z = limit_begin + pcount * self.partition_size
+            let mut c_inter = z % ch
+            let mut p_inter = z / ch
+            let mut k = 0
+            while k < self.partition_size {
+              let entry = match book.decode_scalar(br) {
+                Ok(e) => e
+                Err(err) => return Err(err)
+              }
+              let dim = book.dimensions
+              let base = entry * dim
+              let nn = if dim < self.partition_size - k {
+                dim
+              } else {
+                self.partition_size - k
+              }
+              for ii in 0..<nn {
+                if c_inter < ch && p_inter < targets[c_inter].length() {
+                  targets[c_inter][p_inter] = targets[c_inter][p_inter] +
+                    book.multiplicands_f[base + ii]
+                }
+                c_inter += 1
+                if c_inter == ch {
+                  c_inter = 0
+                  p_inter += 1
+                }
+              }
+              k += dim
             }
-            k += book.dimensions
+          } else {
+            if rtype == 0 {
+              return Err("residue type 0 not yet supported")
+            }
+            let offset = limit_begin + pcount * self.partition_size
+            let mut k = 0
+            while k < self.partition_size {
+              match
+                book.decode_vq(
+                  br,
+                  targets[0],
+                  offset + k,
+                  self.partition_size - k,
+                ) {
+                Ok(_) => ()
+                Err(e) => return Err(e)
+              }
+              k += book.dimensions
+            }
           }
         }
         pcount += 1

@@ -13,7 +13,7 @@ pub struct VorbisStream {
   mut comment : VorbisComment?
   mut setup : VorbisSetup?
   mut decoder : Decoder?
-  pcm : Array[Float]
+  pcm : Array[Array[Float]]
 }
 
 ///|
@@ -73,8 +73,13 @@ pub fn VorbisStream::push_page(
           Some(d) =>
             match d.decode_packet(BitReader::new(packet)) {
               Ok(out) =>
-                for s in out {
-                  self.pcm.push(s)
+                for ch in 0..<out.length() {
+                  if self.pcm.length() <= ch {
+                    self.pcm.push([])
+                  }
+                  for s in out[ch] {
+                    self.pcm[ch].push(s)
+                  }
                 }
               Err(e) => return Err(e)
             }
@@ -110,8 +115,8 @@ pub fn VorbisStream::channels(self : VorbisStream) -> Int {
 }
 
 ///|
-/// 累计解码出的 PCM 样本（单声道 Float，约 [-1,1]）。
-pub fn VorbisStream::pcm(self : VorbisStream) -> Array[Float] {
+/// 累计解码出的 PCM 样本（每声道一个 Float 数组，约 [-1,1]）。
+pub fn VorbisStream::pcm(self : VorbisStream) -> Array[Array[Float]] {
   self.pcm
 }
 

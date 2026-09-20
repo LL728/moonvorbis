@@ -31,8 +31,9 @@ test "decoder 端到端" {
     Ok(o) => o
     Err(e) => @test.fail(e)
   }
-  @test.assert_eq(out2.length(), 32)
-  for s in out2 {
+  @test.assert_eq(out2.length(), 1)
+  @test.assert_eq(out2[0].length(), 32)
+  for s in out2[0] {
     @test.assert_eq(s.reinterpret_as_uint(), 0x00000000U)
   }
 }

@@ -3,8 +3,8 @@
 ///|
 /// 验证 44 字节头 + 16 位样本序列化。
 test "WAV 16-bit PCM 编码" {
-  let pcm : Array[Float] = [0.0, 0.5, -0.5, 1.0, -1.0]
-  let wav = wav_encode_pcm16_mono(pcm, 44100)
+  let pcm : Array[Array[Float]] = [[0.0, 0.5, -0.5, 1.0, -1.0]]
+  let wav = wav_encode_pcm16(pcm, 44100)
   @test.assert_eq(wav.length(), 44 + 10)
   // RIFF / WAVE magic
   @test.assert_eq(wav.unsafe_get(0), b'R')
