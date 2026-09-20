@@ -1,29 +1,18 @@
-// Learn more about moon.mod configuration:
-// https://docs.moonbitlang.com/en/latest/toolchain/moon/module.html
-//
-// To add a dependency, run this command in your terminal:
-//   moon add moonbitlang/x
-//
-// Or manually declare it in `import`, for example:
-// import {
-//   "moonbitlang/x@0.4.6",
-// }
-
 name = "LL728/moonvorbis"
 
 version = "0.1.0"
 
 readme = "README.mbt.md"
 
-repository = ""
+repository = "https://github.com/LL728/moonvorbis"
 
 license = "Apache-2.0"
 
-keywords = [ ]
+keywords = [ "vorbis", "ogg", "audio", "decoder", "codec", "wasm" ]
 
-preferred_target = "wasm"
+description = "纯 MoonBit 实现的 OGG/Vorbis 音频解码器，不依赖任何 C 库或系统编解码器"
 
-description = ""
+preferred_target = "wasm-gc"
 
 import {
   "moonbitlang/x@0.5.5",
