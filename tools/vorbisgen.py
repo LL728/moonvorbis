@@ -141,7 +141,8 @@ def comment_header(vendor: str = "moonvorbis-vorbisgen") -> bytes:
 
 
 def make_setup(residue_type: int, floor_type: int,
-               partition_size: int = 128, dim: int = 1) -> bytes:
+               partition_size: int = 128, dim: int = 1,
+               sequence_p: bool = False, delta_exp: int = -7) -> bytes:
     """构造 setup header。
 
     最小可用配置：2 个 codebook（一个当 classbook，一个当 residue 的 VQ 书）、
@@ -166,7 +167,8 @@ def make_setup(residue_type: int, floor_type: int,
     mults = [(i % 3) + 1 for i in range(2 * dim)]
     _write_codebook(
         b, dimensions=dim, lengths=[1, 1], lookup_type=2,
-        min_value=0.0, delta_value=2.0 ** -7, value_bits=2, sequence_flag=0,
+        min_value=0.0, delta_value=2.0 ** delta_exp, value_bits=2,
+        sequence_flag=1 if sequence_p else 0,
         multiplicands=mults,
     )
 
@@ -341,7 +343,8 @@ def residue_payload(b: BitWriter, channels: int, residue_type: int,
 def build(sample_rate: int, channels: int, residue_type: int,
           floor_type: int, n_audio_packets: int = 4, trim: int = 0,
           active: bool = False, partition_size: int = 128,
-          dim: int = 1, blocksize_exp: int = 0) -> bytes:
+          dim: int = 1, blocksize_exp: int = 0,
+          sequence_p: bool = False, delta_exp: int = -7) -> bytes:
     """拼出完整的 OGG 流。
 
     active=False 时音频 packet 只带「floor 未使用」位，内容为静音——用来验证
@@ -359,7 +362,8 @@ def build(sample_rate: int, channels: int, residue_type: int,
     pages.append(make_page(serial, 1, 0x00, 0,
                            [comment_header(),
                             make_setup(residue_type, floor_type,
-                                       partition_size, dim)]))
+                                       partition_size, dim, sequence_p,
+                                       delta_exp)]))
 
     # 音频 packet：首 bit 是 packet type（0 = audio），其后是 mode 号（只有 1 个
     # mode，占 0 位），再往后才是各声道的数据。mode 的 blockflag=0，所以不必写
@@ -423,11 +427,16 @@ def main() -> int:
     ap.add_argument("--dim", type=int, default=1, help="residue VQ 书的维度")
     ap.add_argument("--blocksize-exp", type=int, default=0,
                     help="块长 2 的幂次（0 表示按 active 自动选）")
+    ap.add_argument("--sequence-p", action="store_true",
+                    help="codebook 的 sequence_p 置位（分量在码字内累加）")
+    ap.add_argument("--delta-exp", type=int, default=-7,
+                    help="VQ 量化步长 delta 是 2 的多少次幂（越大越响）")
     args = ap.parse_args()
 
     data = build(args.rate, args.channels, args.residue, args.floor,
                  args.packets, args.trim, args.active,
-                 args.partition_size, args.dim, args.blocksize_exp)
+                 args.partition_size, args.dim, args.blocksize_exp,
+                 args.sequence_p, args.delta_exp)
     Path(args.out).write_bytes(data)
     print(f"已写入 {args.out}：{len(data)} 字节，"
           f"floor {args.floor}，residue {args.residue}，"

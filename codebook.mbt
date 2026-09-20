@@ -137,10 +137,6 @@ pub fn Codebook::parse(br : BitReader) -> Result[Codebook, String] {
     delta_value = float32_unpack(br.read_bits(32).reinterpret_as_uint())
     value_bits = br.read_bits(4) + 1
     sequence_flag = br.read_bits(1)
-    if sequence_flag == 1 {
-      // lattice 编码暂不支持
-      return Err("lattice codebook not yet supported")
-    }
     // 原始 lookup value 数量：type 1 是 r，type 2 是 entries*dim
     let n_raw = if lookup_type == 1 {
       lookup1_values(entries, dimensions)
@@ -153,13 +149,20 @@ pub fn Codebook::parse(br : BitReader) -> Result[Codebook, String] {
       multiplicands.push(v)
       raw_f.push(Float::from_int(v) * delta_value + min_value)
     }
+    // 展开成 entries × dimensions 的查表。sequence_p 置位时，码字内部逐分量
+    // 累加，累加器在每个 entry 开头归零。
     if lookup_type == 1 {
-      // type 1：把 r 个原始值按 base-r unvectorize 展开成 entries*dim 个
+      // type 1：把 r 个原始值按 base-r unvectorize 展开
       for j in 0..<entries {
+        let mut last : Float = 0.0
         let mut div = 1
         for k in 0..<dimensions {
           let off = j / div % n_raw
-          multiplicands_f.push(raw_f[off])
+          let val = raw_f[off] + last
+          multiplicands_f.push(val)
+          if sequence_flag == 1 {
+            last = val
+          }
           if k + 1 < dimensions {
             div = div * n_raw
           }
@@ -167,8 +170,15 @@ pub fn Codebook::parse(br : BitReader) -> Result[Codebook, String] {
       }
     } else {
       // type 2：直接是 entries*dim
-      for v in raw_f {
-        multiplicands_f.push(v)
+      for j in 0..<entries {
+        let mut last : Float = 0.0
+        for k in 0..<dimensions {
+          let val = raw_f[j * dimensions + k] + last
+          multiplicands_f.push(val)
+          if sequence_flag == 1 {
+            last = val
+          }
+        }
       }
     }
   }

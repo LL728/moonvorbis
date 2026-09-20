@@ -9,7 +9,7 @@
 
 - **OGG 容器**：页解析、segment table 重组、CRC-32 校验、packet 组装
 - **Vorbis 头部**：identification / comment / setup 三个包头
-- **Codebook**：Huffman 解码、VQ lookup type 1/2、ordered 与 sparse 编码
+- **Codebook**：Huffman 解码、VQ lookup type 1/2、`sequence_p` 累加、ordered 与 sparse 编码
 - **Floor 1**：曲线解码与合成
 - **Residue**：type 0 / type 1 / type 2，含多声道交错 VQ
 - **立体声耦合**：magnitude/angle 反变换
@@ -104,11 +104,13 @@ python tools/verify.py song.ogg
 
 ```bash
 python tools/granule_sweep.py    # 12 组 packet 数 × 尾部裁剪量
-python tools/residue_sweep.py    # residue type 0/1 的单声道与多声道
+python tools/residue_sweep.py    # residue type 0/1 × 单/多声道 × sequence_p
 ```
 
 libvorbis 自 1.0 起只用 floor 1 与 residue type 1/2，官方也没有覆盖全部规范的
-测试向量，这两个脚本补的就是这部分。
+测试向量，这两个脚本补的就是这部分。`sequence_p` 更绕一层：stb_vorbis 与
+libvorbis 对它的语义说法不一致，而 stb 那条路径同样没被真实文件走过——
+按 libvorbis 实现后 6 组用例相关系数均为 1.000000。
 
 WASM 侧另有两个检查。`tools/wasm_contract.py` 静态解析二进制，确认导出
 `decode_ogg_base64` 的签名是 `String -> String`，且除引擎内置外没有任何导入
@@ -132,5 +134,5 @@ msedge --headless=new --virtual-time-budget=20000 \
 
 ## 限制
 
-- 尚未支持 floor 0 与 lattice codebook（sequence_p）
+- 尚未支持 floor 0
 - 只做解码，不做编码

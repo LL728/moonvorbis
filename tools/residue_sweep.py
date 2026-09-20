@@ -31,26 +31,38 @@ import soundfile as sf
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 
-# (residue 类型, 声道数, partition_size, VQ 维度)
+# (residue 类型, 声道数, partition_size, VQ 维度, sequence_p, delta 的幂次)
+#
+# sequence_p 只在维度大于 1 时才有可观察效果——维度 1 的码字只有一个分量，
+# 累加器归不归零都一样。维度 4 叠加后幅度按分量数平方增长，得把 delta 调小一档，
+# 否则解码出来的 PCM 超过 16 位量程、被钳之后再比就失去意义。
 CASES = [
-    (1, 1, 4, 2),
-    (1, 2, 4, 2),
-    (0, 1, 4, 2),
-    (0, 2, 4, 2),
-    (0, 1, 8, 4),
-    (0, 2, 8, 4),
-    (1, 1, 8, 4),
-    (1, 2, 8, 4),
+    (1, 1, 4, 2, False, -7),
+    (1, 2, 4, 2, False, -7),
+    (0, 1, 4, 2, False, -7),
+    (0, 2, 4, 2, False, -7),
+    (0, 1, 8, 4, False, -7),
+    (0, 2, 8, 4, False, -7),
+    (1, 1, 8, 4, False, -7),
+    (1, 2, 8, 4, False, -7),
+    (1, 1, 4, 2, True, -7),
+    (1, 2, 4, 2, True, -7),
+    (1, 1, 8, 4, True, -9),
+    (1, 2, 8, 4, True, -9),
+    (0, 1, 8, 4, True, -9),
+    (0, 2, 8, 4, True, -9),
 ]
 
 
-def generate(ogg: Path, residue: int, channels: int, ps: int, dim: int) -> None:
-    subprocess.run(
-        [sys.executable, str(HERE / "vorbisgen.py"), str(ogg), "--active",
-         "--residue", str(residue), "--channels", str(channels),
-         "--dim", str(dim), "--partition-size", str(ps)],
-        check=True, capture_output=True, cwd=ROOT,
-    )
+def generate(ogg: Path, residue: int, channels: int, ps: int, dim: int,
+             sequence_p: bool, delta_exp: int) -> None:
+    argv = [sys.executable, str(HERE / "vorbisgen.py"), str(ogg), "--active",
+            "--residue", str(residue), "--channels", str(channels),
+            "--dim", str(dim), "--partition-size", str(ps),
+            "--delta-exp", str(delta_exp)]
+    if sequence_p:
+        argv.append("--sequence-p")
+    subprocess.run(argv, check=True, capture_output=True, cwd=ROOT)
 
 
 def decode(ogg: Path, wav: Path) -> str:
@@ -82,9 +94,10 @@ def main() -> int:
     ogg, wav = tmp / "residue_sweep.ogg", tmp / "residue_sweep.wav"
 
     failures = 0
-    for residue, channels, ps, dim in CASES:
-        label = f"type {residue} / {channels}ch / partition {ps} / dim {dim}"
-        generate(ogg, residue, channels, ps, dim)
+    for residue, channels, ps, dim, seqp, dexp in CASES:
+        label = (f"type {residue} / {channels}ch / partition {ps} / dim {dim}"
+                 f"{' / sequence_p' if seqp else ''}")
+        generate(ogg, residue, channels, ps, dim, seqp, dexp)
         err = decode(ogg, wav)
         if err:
             print(f"{label:<42} moonvorbis 失败：{err}")

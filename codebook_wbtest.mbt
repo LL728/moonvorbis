@@ -103,3 +103,47 @@ test "codebook 解析失败：sync 错误" {
     Err(_) => ()
   }
 }
+
+///|
+/// sequence_p（lattice codebook）：码字内部逐分量累加，累加器每个 entry 归零。
+/// 两个码本除 sequence 位外完全相同。原始 multiplicands [1,2,3,1]、delta=2^-7，
+/// 即 [2^-7, 2^-6, 1.5*2^-6, 2^-7]。
+test "codebook：sequence_p 逐 entry 累加" {
+  let plain = match
+    Codebook::parse(
+      BitReader::new(
+        b"\x42\x43\x56\x02\x00\x02\x00\x00\x00\x20\x00\x00\x00\x00\x00\x00\x30\x5f\x21\x0f",
+      ),
+    ) {
+    Ok(c) => c
+    Err(e) => @test.fail(e)
+  }
+  let seqp = match
+    Codebook::parse(
+      BitReader::new(
+        b"\x42\x43\x56\x02\x00\x02\x00\x00\x00\x20\x00\x00\x00\x00\x00\x00\x30\x5f\x31\x0f",
+      ),
+    ) {
+    Ok(c) => c
+    Err(e) => @test.fail(e)
+  }
+
+  // 只有 sequence 位不同
+  @test.assert_eq(plain.sequence_flag, 0)
+  @test.assert_eq(seqp.sequence_flag, 1)
+  @test.assert_eq(plain.multiplicands, seqp.multiplicands)
+
+  // 未置位：逐分量原样展开
+  @test.assert_eq(plain.multiplicands_f.length(), 4)
+  @test.assert_eq(plain.multiplicands_f[0].reinterpret_as_uint(), 0x3C000000U) //  2^-7
+  @test.assert_eq(plain.multiplicands_f[1].reinterpret_as_uint(), 0x3C800000U) //  2^-6
+  @test.assert_eq(plain.multiplicands_f[2].reinterpret_as_uint(), 0x3CC00000U) // 1.5*2^-6
+  @test.assert_eq(plain.multiplicands_f[3].reinterpret_as_uint(), 0x3C000000U) //  2^-7
+
+  // 置位：entry 内累加，entry 1 的累加器从零重新开始。
+  @test.assert_eq(seqp.multiplicands_f.length(), 4)
+  @test.assert_eq(seqp.multiplicands_f[0].reinterpret_as_uint(), 0x3C000000U) // 2^-7
+  @test.assert_eq(seqp.multiplicands_f[1].reinterpret_as_uint(), 0x3CC00000U) // 2^-7 + 2^-6
+  @test.assert_eq(seqp.multiplicands_f[2].reinterpret_as_uint(), 0x3CC00000U) // 1.5*2^-6，重新开始
+  @test.assert_eq(seqp.multiplicands_f[3].reinterpret_as_uint(), 0x3D000000U) // 1.5*2^-6 + 2^-7
+}
