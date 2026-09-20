@@ -5,7 +5,7 @@
 /// channels=2，submaps=2，coupling(mag=0,angle=1)，mux=[0,1]，
 /// submap0(residue=0)、submap1(residue=1)。
 test "mapping 解析：立体声耦合" {
-  let data = b"\x01\x20\x10\x00\x00\x00\x00\x00\x01"
+  let data = b"\x23\x80\x40\x00\x00\x00\x00\x00\x04\x00"
   let br = BitReader::new(data)
   match Mapping::parse(br, 2) {
     Ok(m) => {
@@ -30,7 +30,7 @@ test "mapping 解析：立体声耦合" {
 /// magnitude 与 angle 相等时应返回错误。
 test "mapping 解析失败：magnitude 等于 angle" {
   // submaps=2, coupling_steps=1, mag=0, angle=0
-  let data = b"\x01\x00\x00\x00\x00\x00\x00\x00\x00"
+  let data = b"\x23\x00"
   let br = BitReader::new(data)
   match Mapping::parse(br, 2) {
     Ok(_) => @test.fail("expected coupling error")

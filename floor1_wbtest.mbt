@@ -77,9 +77,8 @@ test "floor1 decode 第一阶段" {
     Ok(f) => f
     Err(e) => @test.fail(e)
   }
-  let codebook = match Codebook::parse(
-    BitReader::new(b"\x42\x43\x56\x01\x00\x02\x00\x00\x84\x00"),
-  ) {
+  let codebook = match
+    Codebook::parse(BitReader::new(b"\x42\x43\x56\x01\x00\x02\x00\x00\x84\x00")) {
     Ok(c) => c
     Err(e) => @test.fail(e)
   }
@@ -101,13 +100,13 @@ test "floor1 synthesize 插值" {
     Ok(f) => f
     Err(e) => @test.fail(e)
   }
-  let codebook = match Codebook::parse(
-    BitReader::new(b"\x42\x43\x56\x01\x00\x02\x00\x00\x84\x00"),
-  ) {
+  let codebook = match
+    Codebook::parse(BitReader::new(b"\x42\x43\x56\x01\x00\x02\x00\x00\x84\x00")) {
     Ok(c) => c
     Err(e) => @test.fail(e)
   }
-  let final_y = match floor.decode(BitReader::new(b"\x64\xc8\x02"), [codebook]) {
+  let final_y = match
+    floor.decode(BitReader::new(b"\x64\xc8\x02"), [codebook]) {
     Ok(y) => y
     Err(e) => @test.fail(e)
   }

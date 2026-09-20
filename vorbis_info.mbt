@@ -53,12 +53,10 @@ pub fn VorbisInfo::parse(packet : Bytes) -> Result[VorbisInfo, String] {
     return Err("missing framing flag")
   }
 
-  Ok(
-    {
-      channels,
-      sample_rate,
-      blocksize0: 1 << bsize0,
-      blocksize1: 1 << bsize1,
-    },
-  )
+  Ok({
+    channels,
+    sample_rate,
+    blocksize0: 1 << bsize0,
+    blocksize1: 1 << bsize1,
+  })
 }

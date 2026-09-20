@@ -2,6 +2,7 @@
 //
 // Vorbis 加窗函数：w[i] = sin(pi/2 * sin^2(pi/2 * (i+0.5)/n2))。
 
+///|
 /// 计算 Vorbis window（长度 n2），用于相邻帧的重叠相加。
 pub fn compute_window(n2 : Int) -> Array[Float] {
   let pi : Float = 3.1415927

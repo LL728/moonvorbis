@@ -20,7 +20,10 @@ pub struct VorbisSetup {
 ///
 /// `channels` 是流的声道数（来自 identification header），供 mapping 解析使用。
 /// 目前仅支持 floor1（floor0 返回错误）。
-pub fn VorbisSetup::parse(packet : Bytes, channels : Int) -> Result[VorbisSetup, String] {
+pub fn VorbisSetup::parse(
+  packet : Bytes,
+  channels : Int,
+) -> Result[VorbisSetup, String] {
   if packet.length() < 7 {
     return Err("truncated setup header")
   }
@@ -107,5 +110,5 @@ pub fn VorbisSetup::parse(packet : Bytes, channels : Int) -> Result[VorbisSetup,
     return Err("missing setup framing flag")
   }
 
-  Ok({ codebooks, floors, residues, mappings, modes })
+  Ok({ codebooks, floors, residues, mappings, modes, })
 }

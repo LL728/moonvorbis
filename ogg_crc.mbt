@@ -28,7 +28,12 @@ let crc_lookup : FixedArray[UInt] = {
 ///
 /// 用于 OGG 页校验——页内 22..26 字节是 CRC 字段本身，校验时需要把它当作 0
 /// 跳过，因此把页头前 22 字节与 26 字节之后的部分分段累加。
-pub fn ogg_crc32_update(crc : UInt, data : Bytes, start : Int, len : Int) -> UInt {
+pub fn ogg_crc32_update(
+  crc : UInt,
+  data : Bytes,
+  start : Int,
+  len : Int,
+) -> UInt {
   let mut c = crc
   for i in start..<(start + len) {
     let byte = data.unsafe_get(i).to_uint()

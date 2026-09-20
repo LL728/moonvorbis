@@ -29,20 +29,29 @@ fn pow_int(base : Int, exp : Int) -> Int {
 }
 
 ///|
-/// lookup type 1 的 lookup values 数量：`round(entries^(1/dim))`。
-/// 用整数运算求 `r` 使得 `r^dim` 最接近 `entries`，避免浮点误差。
+/// lookup type 1 的 lookup values 数量：最大的 `r` 使 `r^dim <= entries`（即 floor(entries^(1/dim))）。
+/// 用整数运算避免浮点误差。
 fn lookup1_values(entries : Int, dim : Int) -> Int {
-  let mut r = 1
-  while pow_int(r, dim) <= entries {
+  let mut r = 0
+  while pow_int(r + 1, dim) <= entries {
     r += 1
   }
-  let lo = pow_int(r - 1, dim)
-  let hi = pow_int(r, dim)
-  if entries - lo < hi - entries {
-    r - 1
+  r
+}
+
+///|
+/// Vorbis 专用的 32 位浮点解包：1 位符号 + 10 位指数 + 21 位尾数。
+/// 值为 `mantissa * 2^(exponent - 788)`，与 IEEE 754 不同，不能按位重解释。
+fn float32_unpack(x : UInt) -> Float {
+  let mantissa = (x & 0x1fffffU).reinterpret_as_int()
+  let sign = (x & 0x80000000U) != 0U
+  let exp = ((x & 0x7fe00000U) >> 21).reinterpret_as_int()
+  let res = if sign {
+    Float::from_int(0 - mantissa)
   } else {
-    r
+    Float::from_int(mantissa)
   }
+  @math.scalbnf(res, exp - 788)
 }
 
 ///|
@@ -83,7 +92,7 @@ pub fn Codebook::parse(br : BitReader) -> Result[Codebook, String] {
 
   let lengths : Array[Int] = []
   if ordered == 1 {
-    // ordered codebook：码长按游程编码
+    // ordered codebook：码长按游程编码，每次游程后 current_length 递增 1
     let mut current_entry = 0
     let mut current_length = br.read_bits(5) + 1
     while current_entry < entries {
@@ -95,10 +104,7 @@ pub fn Codebook::parse(br : BitReader) -> Result[Codebook, String] {
         lengths.push(current_length)
         current_entry += 1
       }
-      if current_entry >= entries {
-        break
-      }
-      current_length = br.read_bits(5) + 1
+      current_length += 1
     }
   } else {
     // unordered codebook：每个 entry 一个码长，sparse 时可能有 hole
@@ -127,24 +133,43 @@ pub fn Codebook::parse(br : BitReader) -> Result[Codebook, String] {
     if lookup_type != 1 && lookup_type != 2 {
       return Err("reserved codebook lookup type")
     }
-    min_value = Float::reinterpret_from_uint(br.read_bits(32).reinterpret_as_uint())
-    delta_value = Float::reinterpret_from_uint(br.read_bits(32).reinterpret_as_uint())
+    min_value = float32_unpack(br.read_bits(32).reinterpret_as_uint())
+    delta_value = float32_unpack(br.read_bits(32).reinterpret_as_uint())
     value_bits = br.read_bits(4) + 1
     sequence_flag = br.read_bits(1)
-    let n_values = if lookup_type == 1 {
-      lookup1_values(entries, dimensions)
-    } else {
-      entries * dimensions
-    }
     if sequence_flag == 1 {
       // lattice 编码暂不支持
       return Err("lattice codebook not yet supported")
     }
-    for _ in 0..<n_values {
-      multiplicands.push(br.read_bits(value_bits))
+    // 原始 lookup value 数量：type 1 是 r，type 2 是 entries*dim
+    let n_raw = if lookup_type == 1 {
+      lookup1_values(entries, dimensions)
+    } else {
+      entries * dimensions
     }
-    for j in 0..<multiplicands.length() {
-      multiplicands_f.push(Float::from_int(multiplicands[j]) * delta_value + min_value)
+    let raw_f : Array[Float] = []
+    for _ in 0..<n_raw {
+      let v = br.read_bits(value_bits)
+      multiplicands.push(v)
+      raw_f.push(Float::from_int(v) * delta_value + min_value)
+    }
+    if lookup_type == 1 {
+      // type 1：把 r 个原始值按 base-r unvectorize 展开成 entries*dim 个
+      for j in 0..<entries {
+        let mut div = 1
+        for k in 0..<dimensions {
+          let off = j / div % n_raw
+          multiplicands_f.push(raw_f[off])
+          if k + 1 < dimensions {
+            div = div * n_raw
+          }
+        }
+      }
+    } else {
+      // type 2：直接是 entries*dim
+      for v in raw_f {
+        multiplicands_f.push(v)
+      }
     }
   }
 
@@ -153,28 +178,31 @@ pub fn Codebook::parse(br : BitReader) -> Result[Codebook, String] {
     Err(e) => return Err(e)
   }
 
-  Ok(
-    {
-      dimensions,
-      entries,
-      lengths,
-      lookup_type,
-      min_value,
-      delta_value,
-      value_bits,
-      sequence_flag,
-      multiplicands,
-      multiplicands_f,
-      huffman,
-    },
-  )
+  Ok({
+    dimensions,
+    entries,
+    lengths,
+    lookup_type,
+    min_value,
+    delta_value,
+    value_bits,
+    sequence_flag,
+    multiplicands,
+    multiplicands_f,
+    huffman,
+  })
 }
 
+///|
 /// 标量解码一个码字，返回 entry 索引。
-pub fn Codebook::decode_scalar(self : Codebook, br : BitReader) -> Result[Int, String] {
+pub fn Codebook::decode_scalar(
+  self : Codebook,
+  br : BitReader,
+) -> Result[Int, String] {
   self.huffman.decode(br)
 }
 
+///|
 /// VQ 解码：解码一个 entry，把 lookup 值累加到 target[offset..offset+len]。
 pub fn Codebook::decode_vq(
   self : Codebook,

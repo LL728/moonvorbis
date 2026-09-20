@@ -1,0 +1,165 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "LL728/moonvorbis"
+
+// Values
+pub const FLAG_BOS : Int = 0x02
+
+pub const FLAG_CONTINUED : Int = 0x01
+
+pub const FLAG_EOS : Int = 0x04
+
+pub fn compute_window(Int) -> Array[Float]
+
+pub fn inverse_mdct(Array[Float], Int) -> Unit
+
+pub fn ogg_crc32(Bytes) -> UInt
+
+pub fn ogg_crc32_update(UInt, Bytes, Int, Int) -> UInt
+
+pub fn parse_modes(BitReader) -> Result[Array[Mode], String]
+
+// Errors
+
+// Types and methods
+type BitReader
+pub fn BitReader::byte_align(Self) -> Unit
+pub fn BitReader::new(Bytes) -> Self
+pub fn BitReader::read_bit(Self) -> Int
+pub fn BitReader::read_bits(Self, Int) -> Int
+pub fn BitReader::remaining_bits(Self) -> Int
+pub fn BitReader::seek(Self, Int) -> Unit
+pub fn BitReader::skip(Self, Int) -> Unit
+pub fn BitReader::tell(Self) -> Int
+pub fn BitReader::total_bits(Self) -> Int
+
+pub struct Codebook {
+  dimensions : Int
+  entries : Int
+  lengths : Array[Int]
+  lookup_type : Int
+  min_value : Float
+  delta_value : Float
+  value_bits : Int
+  sequence_flag : Int
+  multiplicands : Array[Int]
+  multiplicands_f : Array[Float]
+  huffman : HuffmanTable
+}
+pub fn Codebook::decode_scalar(Self, BitReader) -> Result[Int, String]
+pub fn Codebook::decode_vq(Self, BitReader, Array[Float], Int, Int) -> Result[Unit, String]
+pub fn Codebook::parse(BitReader) -> Result[Self, String]
+
+pub struct Decoder {
+  info : VorbisInfo
+  setup : VorbisSetup
+  window0 : Array[Float]
+  window1 : Array[Float]
+  previous_window : Array[Float]
+  mut previous_length : Int
+}
+pub fn Decoder::decode_packet(Self, BitReader) -> Result[Array[Float], String]
+pub fn Decoder::new(VorbisInfo, VorbisSetup) -> Self
+
+pub struct Floor1 {
+  partitions : Int
+  partition_class_list : Array[Int]
+  class_dimensions : Array[Int]
+  class_subclasses : Array[Int]
+  class_masterbooks : Array[Int]
+  subclass_books : Array[Array[Int]]
+  multiplier : Int
+  rangebits : Int
+  x_list : Array[Int]
+  sorted_order : Array[Int]
+  neighbors : Array[Array[Int]]
+}
+pub fn Floor1::decode(Self, BitReader, Array[Codebook]) -> Result[Array[Int], String]
+pub fn Floor1::parse(BitReader) -> Result[Self, String]
+pub fn Floor1::synthesize(Self, Array[Int], Int) -> Array[Float]
+
+pub struct HuffmanTable {
+  codewords : Array[UInt]
+  lengths : Array[Int]
+  symbols : Array[Int]
+}
+pub fn HuffmanTable::build(Array[Int]) -> Result[Self, String]
+pub fn HuffmanTable::decode(Self, BitReader) -> Result[Int, String]
+
+pub struct Mapping {
+  submaps : Int
+  coupling_steps : Int
+  magnitude : Array[Int]
+  angle : Array[Int]
+  mux : Array[Int]
+  time_config : Array[Int]
+  floor : Array[Int]
+  residue : Array[Int]
+}
+pub fn Mapping::parse(BitReader, Int) -> Result[Self, String]
+
+pub struct Mode {
+  blockflag : Int
+  windowtype : Int
+  transformtype : Int
+  mapping : Int
+}
+
+pub struct OggPage {
+  data : Bytes
+  offset : Int
+  header_type : Int
+  granule_position : Int64
+  serial_number : UInt
+  page_sequence : UInt
+  checksum : UInt
+  n_segments : Int
+  body_len : Int
+}
+pub fn OggPage::parse(Bytes, Int) -> Result[Self, String]
+pub fn OggPage::segment_len(Self, Int) -> Int
+pub fn OggPage::total_size(Self) -> Int
+
+type PacketAssembler
+pub fn PacketAssembler::has_partial(Self) -> Bool
+pub fn PacketAssembler::new() -> Self
+pub fn PacketAssembler::push_page(Self, OggPage) -> Array[Bytes]
+
+pub struct Residue {
+  residue_type : Int
+  begin : Int
+  end : Int
+  partition_size : Int
+  classifications : Int
+  classbook : Int
+  cascade : Array[Int]
+  residue_books : Array[Array[Int]]
+}
+pub fn Residue::decode(Self, BitReader, Array[Codebook], Array[Float], Int) -> Result[Unit, String]
+pub fn Residue::parse(BitReader) -> Result[Self, String]
+
+pub struct VorbisComment {
+  vendor : String
+  comments : Array[String]
+}
+pub fn VorbisComment::parse(Bytes) -> Result[Self, String]
+
+pub struct VorbisInfo {
+  channels : Int
+  sample_rate : Int
+  blocksize0 : Int
+  blocksize1 : Int
+}
+pub fn VorbisInfo::parse(Bytes) -> Result[Self, String]
+
+pub struct VorbisSetup {
+  codebooks : Array[Codebook]
+  floors : Array[Floor1]
+  residues : Array[Residue]
+  mappings : Array[Mapping]
+  modes : Array[Mode]
+}
+pub fn VorbisSetup::parse(Bytes, Int) -> Result[Self, String]
+
+// Type aliases
+
+// Traits

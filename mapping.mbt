@@ -27,13 +27,18 @@ pub struct Mapping {
 /// 从 `br` 的当前位置解析一个 mapping 配置。
 ///
 /// `channels` 是流的声道数（来自 identification header）。
-pub fn Mapping::parse(br : BitReader, channels : Int) -> Result[Mapping, String] {
-  let submaps = br.read_bits(4) + 1
+pub fn Mapping::parse(
+  br : BitReader,
+  channels : Int,
+) -> Result[Mapping, String] {
+  // submaps：先读 1 位 flag，置位才读 4 位 + 1，否则默认 1
+  let submaps = if br.read_bits(1) == 1 { br.read_bits(4) + 1 } else { 1 }
 
+  // coupling：先读 1 位 flag，置位才读 8 位 + 1 与各声道对
   let mut coupling_steps = 0
   let magnitude : Array[Int] = []
   let angle : Array[Int] = []
-  if submaps > 1 {
+  if br.read_bits(1) == 1 {
     coupling_steps = br.read_bits(8) + 1
     for _ in 0..<coupling_steps {
       let mag = br.read_bits(ilog(channels - 1))
@@ -73,16 +78,14 @@ pub fn Mapping::parse(br : BitReader, channels : Int) -> Result[Mapping, String]
     residue.push(br.read_bits(8))
   }
 
-  Ok(
-    {
-      submaps,
-      coupling_steps,
-      magnitude,
-      angle,
-      mux,
-      time_config,
-      floor,
-      residue,
-    },
-  )
+  Ok({
+    submaps,
+    coupling_steps,
+    magnitude,
+    angle,
+    mux,
+    time_config,
+    floor,
+    residue,
+  })
 }

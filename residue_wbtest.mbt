@@ -46,19 +46,26 @@ test "residue 解析失败：type 非法" {
 ///|
 /// residue decode（单声道 type1）：参考 target=[10,20,10,20]。
 test "residue decode" {
-  let residue = match Residue::parse(
-    BitReader::new(b"\x01\x00\x00\x00\x00\x04\x00\x00\x01\x00\x00\x00\x40\x04\x00"),
-  ) {
+  let residue = match
+    Residue::parse(
+      BitReader::new(
+        b"\x01\x00\x00\x00\x00\x04\x00\x00\x01\x00\x00\x00\x40\x04\x00",
+      ),
+    ) {
     Ok(r) => r
     Err(e) => @test.fail(e)
   }
-  let cb0 = match Codebook::parse(BitReader::new(b"\x42\x43\x56\x01\x00\x01\x00\x00\x00\x00")) {
+  let cb0 = match
+    Codebook::parse(BitReader::new(b"\x42\x43\x56\x01\x00\x01\x00\x00\x00\x00")) {
     Ok(c) => c
     Err(e) => @test.fail(e)
   }
-  let cb1 = match Codebook::parse(
-    BitReader::new(b"\x42\x43\x56\x02\x00\x01\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\xfc\x19\xca"),
-  ) {
+  let cb1 = match
+    Codebook::parse(
+      BitReader::new(
+        b"\x42\x43\x56\x02\x00\x01\x00\x00\x00\x01\x00\x00\x00\x08\x00\x00\x14\x1b\xca",
+      ),
+    ) {
     Ok(c) => c
     Err(e) => @test.fail(e)
   }

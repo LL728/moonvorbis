@@ -2,6 +2,7 @@
 //
 // Vorbis codebook 的 Huffman 解码表：从码长构建码字，并按码字匹配解码。
 
+///|
 /// 32 位位反转。
 fn bit_reverse(x : UInt) -> UInt {
   let mut r = 0U
@@ -13,6 +14,7 @@ fn bit_reverse(x : UInt) -> UInt {
   r
 }
 
+///|
 /// 从码长数组计算每个 entry 的码字（Vorbis canonical Huffman，码字已 bit_reverse）。
 /// 码长 <= 0 的 entry 视为 hole，码字保持 0。
 fn compute_codewords(lengths : Array[Int]) -> Result[Array[UInt], String] {
@@ -35,7 +37,7 @@ fn compute_codewords(lengths : Array[Int]) -> Result[Array[UInt], String] {
     available.push(0U)
   }
   codewords[k] = 0U
-  for i in 1..=lengths[k] {
+  for i in 1..<=lengths[k] {
     available[i] = 1U << (32 - i)
   }
   for i in (k + 1)..<n {
@@ -72,8 +74,11 @@ pub struct HuffmanTable {
   symbols : Array[Int]
 }
 
+///|
 /// 由码长数组构建解码表。
-pub fn HuffmanTable::build(lengths : Array[Int]) -> Result[HuffmanTable, String] {
+pub fn HuffmanTable::build(
+  lengths : Array[Int],
+) -> Result[HuffmanTable, String] {
   let codewords = match compute_codewords(lengths) {
     Ok(c) => c
     Err(e) => return Err(e)
@@ -88,11 +93,19 @@ pub fn HuffmanTable::build(lengths : Array[Int]) -> Result[HuffmanTable, String]
       table_symbols.push(i)
     }
   }
-  Ok({ codewords: table_codewords, lengths: table_lengths, symbols: table_symbols })
+  Ok({
+    codewords: table_codewords,
+    lengths: table_lengths,
+    symbols: table_symbols,
+  })
 }
 
+///|
 /// 逐位读取并匹配码字，返回对应 entry 索引；未匹配返回错误。
-pub fn HuffmanTable::decode(self : HuffmanTable, br : BitReader) -> Result[Int, String] {
+pub fn HuffmanTable::decode(
+  self : HuffmanTable,
+  br : BitReader,
+) -> Result[Int, String] {
   let mut acc : UInt = 0U
   for n in 0..<32 {
     acc = acc | (br.read_bit().reinterpret_as_uint() << n)

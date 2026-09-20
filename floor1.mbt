@@ -2,6 +2,7 @@
 //
 // Vorbis floor1 setup 解析与 decode 预计算。
 
+///|
 /// floor1 的配置与预计算数据。
 pub struct Floor1 {
   partitions : Int
@@ -17,6 +18,7 @@ pub struct Floor1 {
   neighbors : Array[Array[Int]]
 }
 
+///|
 /// 绝对值。
 fn iabs(x : Int) -> Int {
   if x < 0 {
@@ -26,6 +28,7 @@ fn iabs(x : Int) -> Int {
   }
 }
 
+///|
 /// 线性插值预测：在 (x0,y0)-(x1,y1) 线段上取 x 处的 y。
 fn predict_point(x : Int, x0 : Int, x1 : Int, y0 : Int, y1 : Int) -> Int {
   let dy = y1 - y0
@@ -39,6 +42,7 @@ fn predict_point(x : Int, x0 : Int, x1 : Int, y0 : Int, y1 : Int) -> Int {
   }
 }
 
+///|
 /// 按 x_list 的值对索引 [0..n) 做升序稳定排序（插入排序，n 很小）。
 fn sort_indices(x_list : Array[Int]) -> Array[Int] {
   let n = x_list.length()
@@ -59,6 +63,7 @@ fn sort_indices(x_list : Array[Int]) -> Array[Int] {
   indices
 }
 
+///|
 /// 求 key point `n` 在 x_list 中的左右最近邻居索引（比它小/大的最近者）。
 fn neighbors_of(x_list : Array[Int], n : Int) -> Array[Int] {
   let mut low = -1
@@ -78,6 +83,7 @@ fn neighbors_of(x_list : Array[Int], n : Int) -> Array[Int] {
   [low_idx, high_idx]
 }
 
+///|
 /// 从 `br` 的当前位置解析一个 floor1 配置，并预计算 sorted_order 与 neighbors。
 pub fn Floor1::parse(br : BitReader) -> Result[Floor1, String] {
   let partitions = br.read_bits(5)
@@ -129,25 +135,28 @@ pub fn Floor1::parse(br : BitReader) -> Result[Floor1, String] {
     neighbors.push(neighbors_of(x_list, j))
   }
 
-  Ok(
-    {
-      partitions,
-      partition_class_list,
-      class_dimensions,
-      class_subclasses,
-      class_masterbooks,
-      subclass_books,
-      multiplier,
-      rangebits,
-      x_list,
-      sorted_order,
-      neighbors,
-    },
-  )
+  Ok({
+    partitions,
+    partition_class_list,
+    class_dimensions,
+    class_subclasses,
+    class_masterbooks,
+    subclass_books,
+    multiplier,
+    rangebits,
+    x_list,
+    sorted_order,
+    neighbors,
+  })
 }
 
+///|
 /// floor1 第一阶段：读 amplitude 与 codebook 值，计算各关键点的 Y 值（finalY）。
-pub fn Floor1::decode(self : Floor1, br : BitReader, codebooks : Array[Codebook]) -> Result[Array[Int], String] {
+pub fn Floor1::decode(
+  self : Floor1,
+  br : BitReader,
+  codebooks : Array[Codebook],
+) -> Result[Array[Int], String] {
   let range_list = [256, 128, 86, 64]
   let range = range_list[self.multiplier - 1]
   let amp_bits = ilog(range) - 1
@@ -218,6 +227,7 @@ pub fn Floor1::decode(self : Floor1, br : BitReader, codebooks : Array[Codebook]
   Ok(final_y)
 }
 
+///|
 /// dB 值到线性幅度的转换表（Vorbis 规范规定，256 项）。
 let inverse_db_table : Array[Float] = [
   1.0649863e-07, 1.1341951e-07, 1.2079015e-07, 1.2863978e-07, 1.3699951e-07, 1.4590251e-07,
@@ -251,22 +261,28 @@ let inverse_db_table : Array[Float] = [
   0.0041792066, 0.0044507950, 0.0047400328, 0.0050480668, 0.0053761186, 0.0057254891,
   0.0060975636, 0.0064938176, 0.0069158225, 0.0073652516, 0.0078438871, 0.0083536271,
   0.0088964928, 0.009474637, 0.010090352, 0.010746080, 0.011444421, 0.012188144,
-  0.012980198, 0.013823725, 0.014722068, 0.015678791, 0.016697687, 0.017782797,
-  0.018938423, 0.020169149, 0.021479854, 0.022875735, 0.024362330, 0.025945531,
-  0.027631618, 0.029427276, 0.031339626, 0.033376252, 0.035545228, 0.037855157,
-  0.040315199, 0.042935108, 0.045725273, 0.048696758, 0.051861348, 0.055231591,
-  0.058820850, 0.062643361, 0.066714279, 0.071049749, 0.075666962, 0.080584227,
-  0.085821044, 0.091398179, 0.097337747, 0.10366330, 0.11039993, 0.11757434,
-  0.12521498, 0.13335215, 0.14201813, 0.15124727, 0.16107617, 0.17154380,
-  0.18269168, 0.19456402, 0.20720788, 0.22067342, 0.23501402, 0.25028656,
-  0.26655159, 0.28387361, 0.30232132, 0.32196786, 0.34289114, 0.36517414,
-  0.38890521, 0.41417847, 0.44109412, 0.46975890, 0.50028648, 0.53279791,
-  0.56742212, 0.60429640, 0.64356699, 0.68538959, 0.72993007, 0.77736504,
-  0.82788260, 0.88168307, 0.9389798, 1.0,
+  0.012980198, 0.013823725, 0.014722068, 0.015678791, 0.016697687, 0.017782797, 0.018938423,
+  0.020169149, 0.021479854, 0.022875735, 0.024362330, 0.025945531, 0.027631618, 0.029427276,
+  0.031339626, 0.033376252, 0.035545228, 0.037855157, 0.040315199, 0.042935108, 0.045725273,
+  0.048696758, 0.051861348, 0.055231591, 0.058820850, 0.062643361, 0.066714279, 0.071049749,
+  0.075666962, 0.080584227, 0.085821044, 0.091398179, 0.097337747, 0.10366330, 0.11039993,
+  0.11757434, 0.12521498, 0.13335215, 0.14201813, 0.15124727, 0.16107617, 0.17154380,
+  0.18269168, 0.19456402, 0.20720788, 0.22067342, 0.23501402, 0.25028656, 0.26655159,
+  0.28387361, 0.30232132, 0.32196786, 0.34289114, 0.36517414, 0.38890521, 0.41417847,
+  0.44109412, 0.46975890, 0.50028648, 0.53279791, 0.56742212, 0.60429640, 0.64356699,
+  0.68538959, 0.72993007, 0.77736504, 0.82788260, 0.88168307, 0.9389798, 1.0,
 ]
 
+///|
 /// Bresenham 线性插值，把 [x0,y0] 到 [x1,y1] 的线段累乘到 output 上（Y 经 inverse_db_table 转换）。
-fn draw_line(output : Array[Float], x0 : Int, y0 : Int, x1 : Int, y1 : Int, n : Int) -> Unit {
+fn draw_line(
+  output : Array[Float],
+  x0 : Int,
+  y0 : Int,
+  x1 : Int,
+  y1 : Int,
+  n : Int,
+) -> Unit {
   let dy = y1 - y0
   let adx = x1 - x0
   let ady = iabs(dy)
@@ -294,8 +310,13 @@ fn draw_line(output : Array[Float], x0 : Int, y0 : Int, x1 : Int, y1 : Int, n : 
   }
 }
 
+///|
 /// floor1 第二阶段：把 finalY 关键点插值成完整 floor 曲线（长度 n2）。
-pub fn Floor1::synthesize(self : Floor1, final_y : Array[Int], n2 : Int) -> Array[Float] {
+pub fn Floor1::synthesize(
+  self : Floor1,
+  final_y : Array[Int],
+  n2 : Int,
+) -> Array[Float] {
   let output : Array[Float] = []
   for _ in 0..<n2 {
     output.push(1)

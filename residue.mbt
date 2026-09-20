@@ -60,20 +60,19 @@ pub fn Residue::parse(br : BitReader) -> Result[Residue, String] {
     residue_books.push(books)
   }
 
-  Ok(
-    {
-      residue_type,
-      begin,
-      end,
-      partition_size,
-      classifications,
-      classbook,
-      cascade,
-      residue_books,
-    },
-  )
+  Ok({
+    residue_type,
+    begin,
+    end,
+    partition_size,
+    classifications,
+    classbook,
+    cascade,
+    residue_books,
+  })
 }
 
+///|
 /// 解码 residue（单声道，type 1/2），把残差累加到 target。
 /// `n` 是半块大小；type 2 的 actual_size 为 n*2，其余为 n。
 pub fn Residue::decode(
@@ -87,7 +86,11 @@ pub fn Residue::decode(
   let classbook = codebooks[self.classbook]
   let classwords = classbook.dimensions
   let actual_size = if rtype == 2 { n * 2 } else { n }
-  let limit_begin = if self.begin < actual_size { self.begin } else { actual_size }
+  let limit_begin = if self.begin < actual_size {
+    self.begin
+  } else {
+    actual_size
+  }
   let limit_end = if self.end < actual_size { self.end } else { actual_size }
   let n_read = limit_end - limit_begin
   let part_read = n_read / self.partition_size
@@ -96,9 +99,9 @@ pub fn Residue::decode(
     target[i] = 0
   }
 
-  // 每个 partition 的 classification
+  // 每个 partition 的 classification；多留 classwords 个位置避免填充越界
   let classifications : Array[Int] = []
-  for _ in 0..<part_read {
+  for _ in 0..<(part_read + classwords) {
     classifications.push(0)
   }
 
@@ -113,9 +116,8 @@ pub fn Residue::decode(
         let mut q = temp
         let mut k = 0
         while k < classwords {
-          if pcount + k < part_read {
-            classifications[pcount + classwords - 1 - k] = q % self.classifications
-          }
+          classifications[pcount + classwords - 1 - k] = q %
+            self.classifications
           q = q / self.classifications
           k += 1
         }
@@ -132,7 +134,8 @@ pub fn Residue::decode(
           }
           let mut k = 0
           while k < self.partition_size {
-            match book.decode_vq(br, target, offset + k, self.partition_size - k) {
+            match
+              book.decode_vq(br, target, offset + k, self.partition_size - k) {
               Ok(_) => ()
               Err(e) => return Err(e)
             }

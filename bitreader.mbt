@@ -22,7 +22,7 @@ struct BitReader {
 ///|
 /// 用给定的字节序列构造一个从第 0 位开始读取的位读取器。
 pub fn BitReader::new(data : Bytes) -> BitReader {
-  { data, pos: 0 }
+  { data, pos: 0, }
 }
 
 ///|

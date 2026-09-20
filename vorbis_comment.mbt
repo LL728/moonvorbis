@@ -37,7 +37,9 @@ pub fn VorbisComment::parse(packet : Bytes) -> Result[VorbisComment, String] {
   if vendor_len < 0 || packet.length() < pos + vendor_len {
     return Err("truncated vendor string")
   }
-  let vendor = @utf8.decode_lossy(packet.exact_view(start=pos, end=pos + vendor_len))
+  let vendor = @utf8.decode_lossy(
+    packet.exact_view(start=pos, end=pos + vendor_len),
+  )
   pos += vendor_len
 
   // comment 数量
@@ -61,9 +63,11 @@ pub fn VorbisComment::parse(packet : Bytes) -> Result[VorbisComment, String] {
     if len < 0 || packet.length() < pos + len {
       return Err("truncated comment string")
     }
-    comments.push(@utf8.decode_lossy(packet.exact_view(start=pos, end=pos + len)))
+    comments.push(
+      @utf8.decode_lossy(packet.exact_view(start=pos, end=pos + len)),
+    )
     pos += len
   }
 
-  Ok({ vendor, comments })
+  Ok({ vendor, comments, })
 }

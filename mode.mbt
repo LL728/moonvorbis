@@ -29,7 +29,7 @@ pub fn parse_modes(br : BitReader) -> Result[Array[Mode], String] {
     if windowtype != 0 || transformtype != 0 {
       return Err("unsupported window/transform type")
     }
-    modes.push({ blockflag, windowtype, transformtype, mapping })
+    modes.push({ blockflag, windowtype, transformtype, mapping, })
   }
   Ok(modes)
 }

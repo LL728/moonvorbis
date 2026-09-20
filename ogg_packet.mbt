@@ -17,7 +17,7 @@ struct PacketAssembler {
 ///|
 /// 新建一个空的 packet 重组器。
 pub fn PacketAssembler::new() -> PacketAssembler {
-  { buf: @buffer.Buffer(), active: false }
+  { buf: @buffer.Buffer(), active: false, }
 }
 
 ///|
@@ -25,7 +25,10 @@ pub fn PacketAssembler::new() -> PacketAssembler {
 ///
 /// 跨页未完成的 packet 会累积在内部缓冲中，直到遇到长度 < 255 的 segment 才输出。
 /// 调用方应保证页按顺序传入，且页的 CONTINUED 标志与上一个页的未完成状态一致。
-pub fn PacketAssembler::push_page(self : PacketAssembler, page : OggPage) -> Array[Bytes] {
+pub fn PacketAssembler::push_page(
+  self : PacketAssembler,
+  page : OggPage,
+) -> Array[Bytes] {
   let packets : Array[Bytes] = []
   let body_start = page.offset + OGG_HEADER_SIZE + page.n_segments
   let mut cursor = body_start

@@ -8,12 +8,18 @@
 // 本模块负责解析单个页并做 CRC 校验。把多个页的 segment 重组成逻辑 packet
 // 的工作放在下一步（packet 重组）实现。
 
+///|
 /// OGG 页固定头长度（不含 segment table 和 body）。
 const OGG_HEADER_SIZE : Int = 27
 
+///|
 /// 页头类型标志位。
 pub const FLAG_CONTINUED : Int = 0x01
+
+///|
 pub const FLAG_BOS : Int = 0x02
+
+///|
 pub const FLAG_EOS : Int = 0x04
 
 ///|
@@ -56,7 +62,9 @@ pub fn OggPage::parse(data : Bytes, offset : Int) -> Result[OggPage, String] {
   }
 
   let header_type = data.unsafe_get(offset + 5).to_int()
-  let granule_position = data.unsafe_read_uint64_le(offset + 6).reinterpret_as_int64()
+  let granule_position = data
+    .unsafe_read_uint64_le(offset + 6)
+    .reinterpret_as_int64()
   let serial_number = data.unsafe_read_uint32_le(offset + 14)
   let page_sequence = data.unsafe_read_uint32_le(offset + 18)
   let checksum = data.unsafe_read_uint32_le(offset + 22)
@@ -86,19 +94,17 @@ pub fn OggPage::parse(data : Bytes, offset : Int) -> Result[OggPage, String] {
     return Err("Ogg page CRC mismatch")
   }
 
-  Ok(
-    {
-      data,
-      offset,
-      header_type,
-      granule_position,
-      serial_number,
-      page_sequence,
-      checksum,
-      n_segments,
-      body_len,
-    },
-  )
+  Ok({
+    data,
+    offset,
+    header_type,
+    granule_position,
+    serial_number,
+    page_sequence,
+    checksum,
+    n_segments,
+    body_len,
+  })
 }
 
 ///|
