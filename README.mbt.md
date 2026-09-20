@@ -71,6 +71,12 @@ Builtins（Chrome / Edge 130+）。
 moon test
 ```
 
+## 开发记录
+
+[当 52 个测试全绿，却解不出一段正弦波](docs/stb-vorbis-cross-validation.md) ——
+记录用 stb_vorbis 交叉验证揪出 7 处 Vorbis 规范偏差的过程，以及为什么自造测试
+抓不到这类错误。
+
 ## 限制
 
 - 尚未支持 floor 0、residue type 0、lattice codebook
