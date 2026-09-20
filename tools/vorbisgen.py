@@ -142,18 +142,23 @@ def comment_header(vendor: str = "moonvorbis-vorbisgen") -> bytes:
 
 def make_setup(residue_type: int, floor_type: int,
                partition_size: int = 128, dim: int = 1,
-               sequence_p: bool = False, delta_exp: int = -7) -> bytes:
+               sequence_p: bool = False, delta_exp: int = -7,
+               sample_rate: int = 44100, order: int = 4,
+               bark_map_size: int = 64, ampbits: int = 6,
+               ampdb: int = 5, lsp_dim: int = 1) -> bytes:
     """构造 setup header。
 
     最小可用配置：2 个 codebook（一个当 classbook，一个当 residue 的 VQ 书）、
-    1 个 floor、1 个 residue、1 个 mapping、1 个 mode。
+    1 个 floor、1 个 residue、1 个 mapping、1 个 mode。floor 0 还要第 3 个
+    codebook 来给 LSP 系数。
     """
     b = BitWriter()
     b.write(0x05, 8)
     b.write_bytes(b"vorbis")
 
     # ---- codebook ----
-    b.write(1, 8)  # codebook 数量 - 1 = 1，即 2 个
+    n_books = 3 if floor_type == 0 else 2
+    b.write(n_books - 1, 8)
 
     # codebook 0：classbook。dimensions=1, entries=2, unordered, 非 sparse,
     # 码长 [1,1]（完备 Huffman），lookup_type=0（不做 VQ）
@@ -172,6 +177,20 @@ def make_setup(residue_type: int, floor_type: int,
         multiplicands=mults,
     )
 
+    if floor_type == 0:
+        # codebook 2：floor 0 的 LSP 书。系数要落在 [0, π] 上才不至于让包络
+        # 多项式退化——取值太小则 2cos 全挤在 +2 附近，分母接近 0、增益溢出；
+        # 故 delta 取 2^-5，两个 entry 取 10/13 起的四个值，累加后 2cos 铺开在
+        # [0.6, 1.9]。维度可调，用来覆盖「最后一个码字只用到一部分分量」。
+        lsp_mults = [
+            10 + (i // lsp_dim) * 3 + (i % lsp_dim) for i in range(2 * lsp_dim)
+        ]
+        _write_codebook(
+            b, dimensions=lsp_dim, lengths=[1, 1], lookup_type=2,
+            min_value=0.0, delta_value=2.0 ** -5, value_bits=4,
+            sequence_flag=0, multiplicands=lsp_mults,
+        )
+
     # ---- time domain transform ----
     b.write(0, 6)  # time count - 1 = 0，即 1 个
     b.write(0, 16)  # time type 必须为 0
@@ -181,7 +200,9 @@ def make_setup(residue_type: int, floor_type: int,
     if floor_type == 1:
         _write_floor1(b)
     else:
-        _write_floor0(b)
+        _write_floor0(b, order=order, rate=sample_rate,
+                      bark_map_size=bark_map_size, ampbits=ampbits,
+                      ampdb=ampdb, books=[2])
 
     # ---- residue ----
     b.write(0, 6)  # residue count - 1 = 0，即 1 个
@@ -274,16 +295,19 @@ def _write_floor1(b: BitWriter) -> None:
     b.write(8, 4)    # class 0 的 1 个 X 值
 
 
-def _write_floor0(b: BitWriter) -> None:
-    """floor 0 的配置。order 等字段按规范顺序写入。"""
-    b.write(0, 16)   # floor type 0
-    b.write(0, 8)    # order
-    b.write(0, 16)   # rate
-    b.write(0, 16)   # bark_map_size
-    b.write(0, 6)    # amplitude_bits
-    b.write(0, 8)    # amplitude_offset
-    b.write(0, 4)    # number_of_books - 1 = 0 → 1 本书
-    b.write(0, 8)    # book list[0]
+def _write_floor0(b: BitWriter, order: int, rate: int, bark_map_size: int,
+                  ampbits: int, ampdb: int, books: list[int]) -> None:
+    """floor 0 的配置。字段顺序：order → rate → bark_map_size → ampbits
+    → amplitude_offset → book 列表。"""
+    b.write(0, 16)                  # floor type 0
+    b.write(order, 8)
+    b.write(rate, 16)
+    b.write(bark_map_size, 16)
+    b.write(ampbits, 6)
+    b.write(ampdb, 8)
+    b.write(len(books) - 1, 4)
+    for book in books:
+        b.write(book, 8)
 
 
 def _write_residue(b: BitWriter, residue_type: int, begin: int = 0,
@@ -315,6 +339,35 @@ def floor1_packet(b: BitWriter) -> None:
     b.write(1, 1)    # subclass book 1 的码字 1 → val = 1 ≠ 0
 
 
+def ilog(v: int) -> int:
+    """表示 v 所需的位数（v > 0 时）。"""
+    n = 0
+    while v > 0:
+        n += 1
+        v >>= 1
+    return n
+
+
+def floor0_packet(b: BitWriter, ampbits: int, amplitude: int,
+                  book_count: int, order: int, lsp_dim: int) -> None:
+    """写一个 floor0 packet。
+
+    与 floor 1 不同，floor 0 没有单独的「floor 已用」标志位：幅度字段本身
+    兼作标志，读方解出幅度为 0 就是「本帧没有 floor 数据」。所以这里第一个
+    字段直接就是幅度。
+
+    幅度取到最大，保证读方看到 ampraw > 0。LSP 码字全部写 0 号 entry，系数
+    由码本给出；码本是按维度分块取值的，所以写满 order 个系数所需的码字数
+    要按维度向上取整。
+    """
+    b.write(amplitude, ampbits)
+    b.write(0, ilog(book_count))
+    written = 0
+    while written < order:
+        b.write(0, 1)
+        written += lsp_dim
+
+
 def residue_payload(b: BitWriter, channels: int, residue_type: int,
                     part_read: int, partition_size: int, dim: int) -> None:
     """写 residue 数据。
@@ -344,7 +397,10 @@ def build(sample_rate: int, channels: int, residue_type: int,
           floor_type: int, n_audio_packets: int = 4, trim: int = 0,
           active: bool = False, partition_size: int = 128,
           dim: int = 1, blocksize_exp: int = 0,
-          sequence_p: bool = False, delta_exp: int = -7) -> bytes:
+          sequence_p: bool = False, delta_exp: int = -7,
+          order: int = 4, lsp_dim: int = 1,
+          bark_map_size: int = 64, ampbits: int = 6,
+          ampdb: int = 5, amp_raw: int = -1) -> bytes:
     """拼出完整的 OGG 流。
 
     active=False 时音频 packet 只带「floor 未使用」位，内容为静音——用来验证
@@ -363,7 +419,9 @@ def build(sample_rate: int, channels: int, residue_type: int,
                            [comment_header(),
                             make_setup(residue_type, floor_type,
                                        partition_size, dim, sequence_p,
-                                       delta_exp)]))
+                                       delta_exp, sample_rate, order,
+                                       bark_map_size, ampbits, ampdb,
+                                       lsp_dim)]))
 
     # 音频 packet：首 bit 是 packet type（0 = audio），其后是 mode 号（只有 1 个
     # mode，占 0 位），再往后才是各声道的数据。mode 的 blockflag=0，所以不必写
@@ -375,7 +433,12 @@ def build(sample_rate: int, channels: int, residue_type: int,
             pkt.write(0, 1)
     else:
         for _ in range(channels):
-            floor1_packet(pkt)
+            if floor_type == 1:
+                floor1_packet(pkt)
+            else:
+                floor0_packet(pkt, ampbits,
+                              (1 << ampbits) - 1 if amp_raw < 0 else amp_raw,
+                              1, order, lsp_dim)
         # 解 residue 时传进去的是 n2 = 块长的一半；type 2 的系数每声道两份，
         # 读方据此再把 actual_size 翻倍，partition 数也跟着翻倍。
         n_res = (1 << bs_exp) // 2
@@ -431,12 +494,25 @@ def main() -> int:
                     help="codebook 的 sequence_p 置位（分量在码字内累加）")
     ap.add_argument("--delta-exp", type=int, default=-7,
                     help="VQ 量化步长 delta 是 2 的多少次幂（越大越响）")
+    ap.add_argument("--order", type=int, default=4,
+                    help="floor 0 的 LSP 系数个数")
+    ap.add_argument("--lsp-dim", type=int, default=1,
+                    help="floor 0 的 LSP 书维度")
+    ap.add_argument("--bark-map-size", type=int, default=64,
+                    help="floor 0 的 Bark 频带数")
+    ap.add_argument("--ampbits", type=int, default=6,
+                    help="floor 0 的幅度位宽")
+    ap.add_argument("--ampdb", type=int, default=5,
+                    help="floor 0 的幅度上限（dB），越大包络越强")
+    ap.add_argument("--amp-raw", type=int, default=-1,
+                    help="floor 0 的幅度原始值（默认取满；0 表示本帧无 floor 数据）")
     args = ap.parse_args()
 
     data = build(args.rate, args.channels, args.residue, args.floor,
                  args.packets, args.trim, args.active,
                  args.partition_size, args.dim, args.blocksize_exp,
-                 args.sequence_p, args.delta_exp)
+                 args.sequence_p, args.delta_exp, args.order, args.lsp_dim,
+                 args.bark_map_size, args.ampbits, args.ampdb, args.amp_raw)
     Path(args.out).write_bytes(data)
     print(f"已写入 {args.out}：{len(data)} 字节，"
           f"floor {args.floor}，residue {args.residue}，"

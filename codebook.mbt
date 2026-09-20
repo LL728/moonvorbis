@@ -237,6 +237,38 @@ pub fn Codebook::decode_vq(
 }
 
 ///|
+/// VQ 解码：解码若干码字填满 target[offset..offset+len]，**赋值**而非累加。
+///
+/// 码字按 `dimensions` 个分量一组依次摆放，最后一个码字可以只用到一部分分量。
+/// floor 0 用它填充 LSP 系数。
+pub fn Codebook::decode_vq_set(
+  self : Codebook,
+  br : BitReader,
+  target : Array[Float],
+  offset : Int,
+  len : Int,
+) -> Result[Unit, String] {
+  if self.lookup_type == 0 {
+    return Err("codebook has no lookup table")
+  }
+  let mut i = 0
+  while i < len {
+    let z = match self.decode_scalar(br) {
+      Ok(z) => z
+      Err(e) => return Err(e)
+    }
+    let base = z * self.dimensions
+    let mut k = 0
+    while i < len && k < self.dimensions {
+      target[offset + i] = self.multiplicands_f[base + k]
+      i += 1
+      k += 1
+    }
+  }
+  Ok(())
+}
+
+///|
 /// 同 decode_vq，但分量之间隔着 step 个位置摆放，用于 residue type 0 的交织写法。
 pub fn Codebook::decode_vq_step(
   self : Codebook,

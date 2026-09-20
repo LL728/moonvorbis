@@ -10,6 +10,7 @@
 - **OGG 容器**：页解析、segment table 重组、CRC-32 校验、packet 组装
 - **Vorbis 头部**：identification / comment / setup 三个包头
 - **Codebook**：Huffman 解码、VQ lookup type 1/2、`sequence_p` 累加、ordered 与 sparse 编码
+- **Floor 0**：由 LSP 系数与幅度还原增益曲线
 - **Floor 1**：曲线解码与合成
 - **Residue**：type 0 / type 1 / type 2，含多声道交错 VQ
 - **立体声耦合**：magnitude/angle 反变换
@@ -57,6 +58,7 @@ Builtins：Chrome / Edge 130+、Firefox 134+，Safari 目前不支持。
 | `vorbis_setup.mbt` | setup 头，聚合下列子结构 |
 | `codebook.mbt` | codebook 与 Huffman/VQ 解码 |
 | `huffman.mbt` | Huffman 表构建 |
+| `floor0.mbt` | floor0 解码与合成 |
 | `floor1.mbt` | floor1 解码与合成 |
 | `residue.mbt` | residue 配置与解码 |
 | `mapping.mbt` | channel mapping 与耦合 |
@@ -72,6 +74,7 @@ Builtins：Chrome / Edge 130+、Firefox 134+，Safari 目前不支持。
 | `tools/vorbisgen.py` | 按规范直接拼出 OGG/Vorbis 测试流 |
 | `tools/granule_sweep.py` | 扫 granule position 裁剪行为 |
 | `tools/residue_sweep.py` | 扫 residue 各条通路 |
+| `tools/floor0_sweep.py` | 扫 floor 0 各条通路 |
 | `tools/wasm_contract.py` | 静态校验 wasm 的导入/导出契约 |
 | `demo/headless-test.html` | 无头浏览器冒烟测试 |
 
@@ -105,12 +108,18 @@ python tools/verify.py song.ogg
 ```bash
 python tools/granule_sweep.py    # 12 组 packet 数 × 尾部裁剪量
 python tools/residue_sweep.py    # residue type 0/1 × 单/多声道 × sequence_p
+python tools/floor0_sweep.py     # floor 0 的奇/偶阶 × 单/多声道 × 采样率与 Bark 频带数
 ```
 
 libvorbis 自 1.0 起只用 floor 1 与 residue type 1/2，官方也没有覆盖全部规范的
-测试向量，这两个脚本补的就是这部分。`sequence_p` 更绕一层：stb_vorbis 与
+测试向量，这几个脚本补的就是这部分。`sequence_p` 更绕一层：stb_vorbis 与
 libvorbis 对它的语义说法不一致，而 stb 那条路径同样没被真实文件走过——
 按 libvorbis 实现后 6 组用例相关系数均为 1.000000。
+
+floor 0 连 stb_vorbis 都直接拒收（`VORBIS_feature_not_supported`），libvorbis
+则只在 pre-1.0 的 beta 版里用过它。除了奇数阶与偶数阶要走包络多项式的两个
+分支，它还有一处容易读错的地方：**floor 0 没有「floor 已用」标志位**，幅度字段
+本身兼作标志，读出 0 就是本帧没有 floor 数据。9 组用例的相关系数均为 1.000000。
 
 WASM 侧另有两个检查。`tools/wasm_contract.py` 静态解析二进制，确认导出
 `decode_ogg_base64` 的签名是 `String -> String`，且除引擎内置外没有任何导入
@@ -134,5 +143,4 @@ msedge --headless=new --virtual-time-budget=20000 \
 
 ## 限制
 
-- 尚未支持 floor 0
 - 只做解码，不做编码

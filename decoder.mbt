@@ -73,22 +73,45 @@ pub fn Decoder::decode_packet(
   let mapping = self.setup.mappings[mode.mapping]
   let channels = self.info.channels
 
-  // floor 解码：每声道读 1 位标志，解码得到 finalY 并合成曲线
+  // floor 解码：解出本声道的包络曲线，并记下它是否真的给了数据
   let floor_curves : Array[Array[Float]] = []
   let has_floor : Array[Int] = []
   for ch in 0..<channels {
     let mux = if mapping.submaps > 1 { mapping.mux[ch] } else { 0 }
     let floor = self.setup.floors[mapping.floor[mux]]
-    let f = br.read_bits(1)
-    has_floor.push(f)
-    if f == 1 {
-      let final_y = match floor.decode(br, self.setup.codebooks) {
-        Ok(y) => y
-        Err(e) => return Err(e)
+    match floor {
+      Floor::Type1(f1) => {
+        // floor 1 自带一位「floor 已用」标志；未置位时本声道没有包络。
+        if br.read_bits(1) == 0 {
+          has_floor.push(0)
+          floor_curves.push([])
+          continue
+        }
+        let final_y = match f1.decode(br, self.setup.codebooks) {
+          Ok(y) => y
+          Err(e) => return Err(e)
+        }
+        has_floor.push(1)
+        floor_curves.push(f1.synthesize(final_y, n2))
       }
-      floor_curves.push(floor.synthesize(final_y, n2))
-    } else {
-      floor_curves.push([])
+      Floor::Type0(f0) => {
+        // floor 0 没有独立的标志位：幅度为 0 就表示本帧没有 floor 数据。
+        // 这一点要读完幅度才知道，所以只能先解再看。
+        let memo = match f0.decode(br, self.setup.codebooks) {
+          Ok(m) => m
+          Err(e) => return Err(e)
+        }
+        match memo {
+          Some(lsp) => {
+            has_floor.push(1)
+            floor_curves.push(f0.synthesize(lsp, n2))
+          }
+          None => {
+            has_floor.push(0)
+            floor_curves.push([])
+          }
+        }
+      }
     }
   }
 

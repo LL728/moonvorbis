@@ -147,3 +147,67 @@ test "codebook：sequence_p 逐 entry 累加" {
   @test.assert_eq(seqp.multiplicands_f[2].reinterpret_as_uint(), 0x3CC00000U) // 1.5*2^-6，重新开始
   @test.assert_eq(seqp.multiplicands_f[3].reinterpret_as_uint(), 0x3D000000U) // 1.5*2^-6 + 2^-7
 }
+
+///|
+/// VQ 解码：维度 2 的码本只填 3 个位置——第二个码字只用得上一个分量，
+/// 多出来的那个分量不该落到目标数组之外，也不该被写进去。
+///
+/// 码本同上（dimensions=2、entries=2、码长各 1 位、delta=2^-7），
+/// multiplicands_f 为 [2^-7, 2^-6, 1.5*2^-6, 2^-7]。位流先给码字 0 再给
+/// 码字 1，即 entry 0 的两个分量、entry 1 的第一个分量。
+test "codebook：VQ 解码填不满一个码字时只用前几个分量" {
+  let cb = match
+    Codebook::parse(
+      BitReader::new(
+        b"\x42\x43\x56\x02\x00\x02\x00\x00\x00\x20\x00\x00\x00\x00\x00\x00\x30\x5f\x23\x64\x02",
+      ),
+    ) {
+    Ok(c) => c
+    Err(e) => @test.fail(e)
+  }
+  @test.assert_eq(cb.dimensions, 2)
+  @test.assert_eq(cb.entries, 2)
+
+  // 位流：码字 0 → entry 0，码字 1 → entry 1
+  let target : Array[Float] = [99.0, 99.0, 99.0, 99.0]
+  match cb.decode_vq_set(BitReader::new(b"\x02"), target, 0, 3) {
+    Ok(_) => ()
+    Err(e) => @test.fail(e)
+  }
+  // 目标位置被赋值覆盖，而不是与初值相加
+  @test.assert_eq(target[0].reinterpret_as_uint(), 0x3C000000U) //  2^-7
+  @test.assert_eq(target[1].reinterpret_as_uint(), 0x3C800000U) //  2^-6
+  @test.assert_eq(target[2].reinterpret_as_uint(), 0x3CC00000U) // 1.5*2^-6
+  // 范围之外的位置不动
+  @test.assert_eq(target[3].reinterpret_as_uint(), 99.0F.reinterpret_as_uint())
+
+  // 从 offset 1 起填 4 个位置：两个码字都取 entry 1，正好两个整码字
+  let target2 : Array[Float] = [99.0, 99.0, 99.0, 99.0, 99.0, 99.0]
+  match cb.decode_vq_set(BitReader::new(b"\x03"), target2, 1, 4) {
+    Ok(_) => ()
+    Err(e) => @test.fail(e)
+  }
+  @test.assert_eq(target2[0].reinterpret_as_uint(), 99.0F.reinterpret_as_uint())
+  @test.assert_eq(target2[1].reinterpret_as_uint(), 0x3CC00000U) // 1.5*2^-6
+  @test.assert_eq(target2[2].reinterpret_as_uint(), 0x3C000000U) // 2^-7
+  @test.assert_eq(target2[3].reinterpret_as_uint(), 0x3CC00000U) // 1.5*2^-6
+  @test.assert_eq(target2[4].reinterpret_as_uint(), 0x3C000000U) // 2^-7
+  @test.assert_eq(target2[5].reinterpret_as_uint(), 99.0F.reinterpret_as_uint())
+}
+
+///|
+/// 没有 lookup table 的码本取不出分量，应当报错而不是填零。
+test "codebook：VQ 解码拒绝无 lookup table 的码本" {
+  let cb = match
+    Codebook::parse(
+      BitReader::new(b"\x42\x43\x56\x02\x00\x04\x00\x00\x04\x11\x04\x00"),
+    ) {
+    Ok(c) => c
+    Err(e) => @test.fail(e)
+  }
+  let target : Array[Float] = [0.0, 0.0]
+  match cb.decode_vq_set(BitReader::new(b"\x00"), target, 0, 2) {
+    Ok(_) => @test.fail("expected error")
+    Err(_) => ()
+  }
+}

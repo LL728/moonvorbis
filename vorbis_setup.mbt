@@ -6,10 +6,17 @@
 // residue、mapping、mode，并以 framing bit 收尾。
 
 ///|
+/// floor 的两种类型。两者都是「给出逐样本的增益曲线」，表示方式不同。
+pub enum Floor {
+  Type0(Floor0)
+  Type1(Floor1)
+}
+
+///|
 /// 完整的 setup 配置。
 pub struct VorbisSetup {
   codebooks : Array[Codebook]
-  floors : Array[Floor1]
+  floors : Array[Floor]
   residues : Array[Residue]
   mappings : Array[Mapping]
   modes : Array[Mode]
@@ -59,20 +66,23 @@ pub fn VorbisSetup::parse(
     }
   }
 
-  // floors（仅支持 floor1）
+  // floors
   let floor_count = br.read_bits(6) + 1
-  let floors : Array[Floor1] = []
+  let floors : Array[Floor] = []
   for _ in 0..<floor_count {
     let floor_type = br.read_bits(16)
     if floor_type == 0 {
-      return Err("floor0 not yet supported")
-    }
-    if floor_type != 1 {
+      match Floor0::parse(br, codebooks) {
+        Ok(f) => floors.push(Floor::Type0(f))
+        Err(e) => return Err(e)
+      }
+    } else if floor_type == 1 {
+      match Floor1::parse(br) {
+        Ok(f) => floors.push(Floor::Type1(f))
+        Err(e) => return Err(e)
+      }
+    } else {
       return Err("invalid floor type")
-    }
-    match Floor1::parse(br) {
-      Ok(f) => floors.push(f)
-      Err(e) => return Err(e)
     }
   }
 

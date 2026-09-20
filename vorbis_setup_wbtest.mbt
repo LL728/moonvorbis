@@ -18,7 +18,10 @@ test "setup header 整体解析" {
       @test.assert_eq(setup.modes.length(), 1)
       // 抽查各组成部分的关键字段
       @test.assert_eq(setup.codebooks[0].entries, 2)
-      @test.assert_eq(setup.floors[0].partitions, 1)
+      match setup.floors[0] {
+        Floor::Type1(f) => @test.assert_eq(f.partitions, 1)
+        Floor::Type0(_) => @test.fail("expected floor1")
+      }
       @test.assert_eq(setup.residues[0].residue_type, 2)
       @test.assert_eq(setup.mappings[0].submaps, 1)
       @test.assert_eq(setup.modes[0].mapping, 0)
