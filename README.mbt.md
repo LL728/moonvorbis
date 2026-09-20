@@ -28,6 +28,10 @@ moon run cmd/main --target wasm-gc -- input.ogg output.wav
 
 ### 浏览器
 
+线上版本：<https://ll728.github.io/moonvorbis/demo/>
+
+本地运行：
+
 ```bash
 # 重新生成 demo/moonvorbis.wasm（仓库内已附带一份）
 moon build --target wasm-gc --release
