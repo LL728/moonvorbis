@@ -1,5 +1,7 @@
-// import {
-//   "LL728/moonvorbis" @lib,
-// }
+import {
+  "LL728/moonvorbis",
+  "moonbitlang/core/env",
+  "moonbitlang/x/fs",
+}
 
 pkgtype(kind: "executable")

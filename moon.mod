@@ -19,8 +19,12 @@ repository = ""
 
 license = "Apache-2.0"
 
-keywords = []
+keywords = [ ]
 
 preferred_target = "wasm"
 
 description = ""
+
+import {
+  "moonbitlang/x@0.5.5",
+}
