@@ -38,7 +38,7 @@ python -m http.server
 ```
 
 页面在本地完成解码，音频不会上传。需要浏览器支持 WebAssembly JS String
-Builtins（Chrome / Edge 130+）。
+Builtins：Chrome / Edge 130+、Firefox 134+，Safari 目前不支持。
 
 ## 结构
 
@@ -65,6 +65,8 @@ Builtins（Chrome / Edge 130+）。
 | `wasm_api.mbt` | WASM 导出接口 |
 | `cmd/main/` | 命令行入口 |
 | `tools/verify.py` | 对 libvorbis 的交叉验证脚本 |
+| `tools/wasm_contract.py` | 静态校验 wasm 的导入/导出契约 |
+| `demo/headless-test.html` | 无头浏览器冒烟测试 |
 
 ## 测试
 
@@ -82,6 +84,20 @@ python tools/verify.py --stereo --noise    # 相关系数 0.9970
 ```
 
 需要 `numpy` 与 `soundfile`。
+
+WASM 侧另有两个检查。`tools/wasm_contract.py` 静态解析二进制，确认导出
+`decode_ogg_base64` 的签名是 `String -> String`，且除引擎内置外没有任何导入
+（`demo/main.js` 用的是空 imports 对象，多一条导入实例化就会失败）。
+`demo/headless-test.html` 则在无头浏览器里跑完整链路，把 WAV 校验和写进页面：
+
+```bash
+python tools/wasm_contract.py
+msedge --headless=new --virtual-time-budget=20000 \
+  --dump-dom http://localhost:8000/demo/headless-test.html
+```
+
+随附的 `demo/sample.ogg` 在浏览器中解出 2ch / 44100Hz / 44608 帧，与命令行
+解码的产物逐字节相同。
 
 ## 开发记录
 

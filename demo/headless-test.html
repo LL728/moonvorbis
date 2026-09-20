@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>PENDING</title>
+</head>
+<body>
+<pre id="out">running…</pre>
+<script>
+/*
+ * 无头冒烟测试：不依赖人工点击，跑完把结论写进 <title>，供
+ *   msedge --headless --dump-dom --virtual-time-budget=N
+ * 之类的命令直接读取。
+ *
+ * 覆盖的是 demo 里最容易出问题的部分：wasm 能否按 main.js 的方式加载、
+ * decode_ogg_base64 能否解出合法 WAV。不覆盖拖拽/播放等 DOM 交互。
+ */
+
+const WASM_URL = "./moonvorbis.wasm";
+const OGG_URL = "./sample.ogg";
+
+const out = document.getElementById("out");
+const log = (line) => { out.textContent += "\n" + line; };
+
+// 分块拼接，避免大文件下 String.fromCharCode 撑爆调用栈
+function bytesToBase64(bytes) {
+  const CHUNK = 0x8000;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(b64) {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function readU32LE(bytes, offset) {
+  return bytes[offset] | (bytes[offset + 1] << 8) |
+         (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24);
+}
+function readU16LE(bytes, offset) {
+  return bytes[offset] | (bytes[offset + 1] << 8);
+}
+
+function finish(ok, summary) {
+  log(summary);
+  document.title = (ok ? "PASS " : "FAIL ") + summary;
+  out.textContent += "\n--done--";
+}
+
+(async () => {
+  try {
+    // 1. 与 main.js 一致的加载方式
+    const wasmBytes = await (await fetch(WASM_URL)).arrayBuffer();
+    const module = await WebAssembly.compile(wasmBytes, {
+      builtins: ["js-string"],
+      importedStringConstants: "_",
+    });
+    const instance = await WebAssembly.instantiate(module, {});
+    const decoder = instance.exports;
+    log("decode_ogg_base64 导出: " + typeof decoder.decode_ogg_base64);
+
+    // 2. 同一份样例
+    const ogg = new Uint8Array(await (await fetch(OGG_URL)).arrayBuffer());
+    log("输入 OGG 字节数: " + ogg.length);
+
+    // 3. 调用导出函数
+    const b64 = decoder.decode_ogg_base64(bytesToBase64(ogg));
+    log("返回类型: " + typeof b64 + ", 长度: " + (b64 ? b64.length : 0));
+
+    if (!b64 || b64.length === 0) {
+      finish(false, "decoder returned empty");
+      return;
+    }
+
+    // 4. 校验返回的确实是合法 WAV
+    const wav = base64ToBytes(b64);
+    const riff = String.fromCharCode(...wav.subarray(0, 4));
+    const wave = String.fromCharCode(...wav.subarray(8, 12));
+    const channels = readU16LE(wav, 22);
+    const sampleRate = readU32LE(wav, 24);
+    const bits = readU16LE(wav, 34);
+    const dataSize = readU32LE(wav, 40);
+    const frames = dataSize / (channels * (bits / 8));
+
+    log(`WAV: ${riff}/${wave} ${channels}ch ${sampleRate}Hz ${bits}bit ` +
+        `${dataSize}B = ${frames} frames`);
+
+    if (riff !== "RIFF" || wave !== "WAVE") {
+      finish(false, "output is not a RIFF/WAVE stream");
+      return;
+    }
+    // 音频数据不能是整段静音——那说明解码"成功"但没解出东西
+    let peak = 0;
+    for (let i = 44; i < wav.length - 1; i += 2) {
+      const s = Math.abs((wav[i] | (wav[i + 1] << 8)) << 16 >> 16);
+      if (s > peak) peak = s;
+    }
+    log("峰值绝对值: " + peak);
+    if (peak === 0) {
+      finish(false, "decoded audio is entirely silent");
+      return;
+    }
+
+    // 整体校验和，便于和 CLI 产物逐字节比对。
+    // 必须用 Math.imul：普通乘法在这里会溢出到 2^56，超出 double 的精度范围。
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < wav.length; i++) {
+      hash ^= wav[i];
+      hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+    const hex = hash.toString(16).padStart(8, "0");
+    log("WAV 总长: " + wav.length);
+    log("header   : " + [...wav.subarray(0, 48)]
+        .map((b) => b.toString(16).padStart(2, "0")).join(" "));
+    log("data区首 : " + [...wav.subarray(44, 76)]
+        .map((b) => b.toString(16).padStart(2, "0")).join(" "));
+    log("FNV-1a: " + hex);
+
+    finish(true, `${channels}ch ${sampleRate}Hz ${frames} frames peak=${peak} fnv=${hex}`);
+  } catch (e) {
+    finish(false, "exception: " + (e && e.message ? e.message : e));
+  }
+})();
+</script>
+</body>
+</html>
