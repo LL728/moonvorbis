@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>moonvorbis — 浏览器内 OGG/Vorbis 解码</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --fg: #1b1f24;
+        --muted: #5b6472;
+        --line: #d6dbe3;
+        --accent: #2f6feb;
+        --bg: #ffffff;
+        --panel: #f7f8fa;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --fg: #e6e9ef;
+          --muted: #9aa4b2;
+          --line: #333a45;
+          --accent: #6ea8ff;
+          --bg: #14171c;
+          --panel: #1b1f26;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 2.5rem 1.25rem;
+        font: 15px/1.6 system-ui, -apple-system, "Segoe UI", "Microsoft YaHei",
+          sans-serif;
+        color: var(--fg);
+        background: var(--bg);
+        display: flex;
+        justify-content: center;
+      }
+      main {
+        width: 100%;
+        max-width: 640px;
+      }
+      h1 {
+        font-size: 1.35rem;
+        margin: 0 0 0.25rem;
+      }
+      .sub {
+        color: var(--muted);
+        margin: 0 0 1.75rem;
+      }
+      #drop {
+        border: 2px dashed var(--line);
+        border-radius: 10px;
+        padding: 2.5rem 1rem;
+        text-align: center;
+        background: var(--panel);
+        cursor: pointer;
+        transition: border-color 0.15s, background 0.15s;
+      }
+      #drop.hover {
+        border-color: var(--accent);
+      }
+      #drop strong {
+        color: var(--accent);
+      }
+      #drop p {
+        margin: 0.5rem 0 0;
+        color: var(--muted);
+        font-size: 0.875rem;
+      }
+      input[type="file"] {
+        display: none;
+      }
+      #status {
+        margin: 1.25rem 0 0;
+        min-height: 1.6em;
+        font-size: 0.9375rem;
+      }
+      #status.error {
+        color: #cf222e;
+      }
+      #result {
+        display: none;
+        margin-top: 1.5rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid var(--line);
+      }
+      #result.show {
+        display: block;
+      }
+      audio {
+        width: 100%;
+        margin-bottom: 0.75rem;
+      }
+      #meta {
+        color: var(--muted);
+        font-size: 0.875rem;
+        margin: 0 0 0.75rem;
+      }
+      a.download {
+        color: var(--accent);
+        font-size: 0.875rem;
+      }
+      footer {
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 0.8125rem;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>moonvorbis</h1>
+      <p class="sub">
+        纯 MoonBit 实现的 OGG/Vorbis 解码器，编译为 WebAssembly，在浏览器内完成解码。
+      </p>
+
+      <label id="drop" for="file">
+        <strong>选择或拖入 .ogg 文件</strong>
+        <p>音频不会上传到任何服务器，全部在本地解码</p>
+      </label>
+      <input id="file" type="file" accept=".ogg,audio/ogg" />
+
+      <p id="status">正在加载解码器…</p>
+
+      <section id="result">
+        <audio id="player" controls></audio>
+        <p id="meta"></p>
+        <a id="download" class="download" download="decoded.wav"
+          >下载解码后的 WAV</a
+        >
+      </section>
+
+      <footer>
+        需要浏览器支持 WebAssembly JS String Builtins（Chrome / Edge 130+）。
+        本页须通过 HTTP 打开，例如在仓库根目录执行
+        <code>python -m http.server</code>。
+      </footer>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

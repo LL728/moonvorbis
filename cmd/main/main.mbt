@@ -19,8 +19,10 @@ fn main {
           println("错误: 未找到完整的 Vorbis 头")
           return
         }
+        let channels = stream.channels()
+        let frames = if channels > 0 { stream.pcm()[0].length() } else { 0 }
         println(
-          "采样率: \{stream.sample_rate()} Hz, 声道: \{stream.channels()}, 样本: \{stream.pcm().length()}",
+          "采样率: \{stream.sample_rate()} Hz, 声道: \{channels}, 样本: \{frames}",
         )
         let wav = @moonvorbis.wav_encode_pcm16(
           stream.pcm(),

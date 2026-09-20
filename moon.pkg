@@ -1,5 +1,6 @@
 import {
   "moonbitlang/core/buffer",
+  "moonbitlang/core/encoding/base64",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/math",
 }
@@ -7,3 +8,12 @@ import {
 import {
   "moonbitlang/core/test",
 } for "wbtest"
+
+options(
+  link: {
+    "wasm-gc": {
+      "exports": [ "decode_ogg_base64" ],
+      "use-js-builtin-string": true,
+    },
+  },
+)
