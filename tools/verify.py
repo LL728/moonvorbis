@@ -7,10 +7,13 @@
 判据是连续量而非「成功/失败」：一个把幅度算错 80% 的解码器同样是「跑通了」，
 只有相关系数能把它和真正正确的实现区分开。
 
+也可以直接拿现成的 OGG 文件来验，此时参考值取自 libsndfile（内部是 libvorbis）：
+
 用法:
     python tools/verify.py                  # 默认单声道 440 Hz
     python tools/verify.py --stereo         # 立体声，左右不同频率
     python tools/verify.py --noise          # 宽带噪声，覆盖更多 residue 分支
+    python tools/verify.py a.ogg b.ogg      # 拿已有文件验证
 """
 
 import argparse
@@ -83,12 +86,40 @@ def compare(mine: np.ndarray, ref: np.ndarray) -> list[tuple[float, float]]:
     return out
 
 
+def verify_file(src: Path, tmp: Path) -> tuple[bool, str]:
+    """解码一个现成的 OGG，和 libsndfile 的结果比较。"""
+    dst = tmp / (src.stem + ".wav")
+    decode_with_moonvorbis(src, dst)
+
+    mine, rate_mine = sf.read(str(dst), always_2d=True)
+    try:
+        ref, rate_ref = sf.read(str(src), always_2d=True)
+    except Exception as exc:  # 参考实现读不了，就没法判定
+        return False, f"参考实现无法读取: {exc}"
+
+    if rate_mine != rate_ref:
+        return False, f"采样率不一致: 解码 {rate_mine}, 参考 {rate_ref}"
+
+    # 帧数差异本身是可疑信号：两个解码器面对的 packet 完全相同
+    if abs(len(mine) - len(ref)) > 1:
+        return False, f"帧数不一致: 解码 {len(mine)}, 参考 {len(ref)}"
+
+    results = compare(mine, ref)
+    ok = all(corr > 0.99 and rms < 0.05 for corr, rms in results)
+    detail = "  ".join(f"ch{i}: corr {c:.4f} rms {r:.4f}" for i, (c, r) in enumerate(results))
+    return ok, f"{rate_mine}Hz {len(mine)}帧 {len(results)}声道  {detail}"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
+    ap.add_argument("files", nargs="*", help="待验证的 OGG 文件（给出时跳过合成模式）")
     ap.add_argument("--stereo", action="store_true", help="生成立体声测试信号")
     ap.add_argument("--noise", action="store_true", help="用宽带噪声代替正弦波")
     ap.add_argument("--keep", action="store_true", help="保留中间文件以便手工检查")
     args = ap.parse_args()
+
+    if args.files:
+        return verify_files(args.files)
 
     pcm = make_signal(args.stereo, args.noise)
     tmp = Path(tempfile.mkdtemp(prefix="moonvorbis-verify-"))
@@ -117,6 +148,28 @@ def main() -> int:
     if args.keep:
         print(f"\n中间文件保留在 {tmp}")
     return 0 if ok else 1
+
+
+def verify_files(paths: list[str]) -> int:
+    tmp = Path(tempfile.mkdtemp(prefix="moonvorbis-verify-"))
+    failures = 0
+    for raw in paths:
+        src = Path(raw)
+        if not src.exists():
+            print(f"FAIL  {raw}  文件不存在")
+            failures += 1
+            continue
+        try:
+            ok, detail = verify_file(src, tmp)
+        except SystemExit as exc:  # 解码器自身报错
+            print(f"FAIL  {src.name}  {exc}")
+            failures += 1
+            continue
+        print(f"{'OK  ' if ok else 'FAIL'}  {src.name}  {detail}")
+        failures += 0 if ok else 1
+
+    print(f"\n共 {len(paths)} 个文件，失败 {failures} 个")
+    return 0 if failures == 0 else 1
 
 
 if __name__ == "__main__":

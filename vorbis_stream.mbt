@@ -14,6 +14,8 @@ pub struct VorbisStream {
   mut setup : VorbisSetup?
   mut decoder : Decoder?
   pcm : Array[Array[Float]]
+  // 已见到的最大 granule position，即流中合法的 PCM 帧总数。-1 表示未见到。
+  mut last_granule : Int64
 }
 
 ///|
@@ -27,6 +29,7 @@ pub fn VorbisStream::new() -> VorbisStream {
     setup: None,
     decoder: None,
     pcm: [],
+    last_granule: -1L,
   }
 }
 
@@ -36,6 +39,12 @@ pub fn VorbisStream::push_page(
   self : VorbisStream,
   page : OggPage,
 ) -> Result[Unit, String] {
+  // granule position 记录该页结束时流中的合法 PCM 帧总数；-1 表示该页没有
+  // 结束任何 packet。取最大值而非「最后见到的一个」，避免非单调的异常流把
+  // 已经解出的样本裁掉。
+  if page.granule_position >= 0L && page.granule_position > self.last_granule {
+    self.last_granule = page.granule_position
+  }
   let packets = self.assembler.push_page(page)
   for packet in packets {
     match self.header_state {
@@ -121,6 +130,40 @@ pub fn VorbisStream::pcm(self : VorbisStream) -> Array[Array[Float]] {
 }
 
 ///|
+/// 已见到的最大 granule position，即合法的 PCM 帧总数；尚未见到时返回 -1。
+pub fn VorbisStream::granule_position(self : VorbisStream) -> Int64 {
+  self.last_granule
+}
+
+///|
+/// 把 PCM 裁剪到 granule position 指定的长度。
+///
+/// Vorbis 按块编码，最后一个 packet 往往解出超过原始长度的样本（编码器补的
+/// 尾巴）。granule position 才是权威的帧数，多出来的部分必须丢掉。
+/// 增量喂页的调用方应在流结束后自行调用一次；`decode_ogg` 已经代为调用。
+pub fn VorbisStream::trim_to_granule(self : VorbisStream) -> Unit {
+  if self.last_granule < 0L {
+    return
+  }
+  for ch in 0..<self.pcm.length() {
+    let cur = self.pcm[ch].length()
+    // 先和当前长度比较再转换，避免 granule 超出 Int 范围时转换溢出
+    let limit = if self.last_granule > Int64::from_int(cur) {
+      cur
+    } else {
+      self.last_granule.to_int()
+    }
+    if limit < cur {
+      let trimmed : Array[Float] = []
+      for i in 0..<limit {
+        trimmed.push(self.pcm[ch][i])
+      }
+      self.pcm[ch] = trimmed
+    }
+  }
+}
+
+///|
 /// 一次性解码整个 OGG 文件字节，返回流（含 PCM 与头信息）。便捷封装。
 pub fn decode_ogg(data : Bytes) -> Result[VorbisStream, String] {
   let stream = VorbisStream::new()
@@ -137,5 +180,6 @@ pub fn decode_ogg(data : Bytes) -> Result[VorbisStream, String] {
       Err(e) => return Err(e)
     }
   }
+  stream.trim_to_granule()
   Ok(stream)
 }

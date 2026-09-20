@@ -87,6 +87,13 @@ python tools/verify.py --stereo            # 相关系数 0.9999
 python tools/verify.py --stereo --noise    # 相关系数 0.9970
 ```
 
+它也可以直接拿现成的 OGG 文件来验（参考值取自 libsndfile），并会比对帧数——
+自造素材和解码器出自同一份理解，帧数这类差异只有真实文件才逼得出来：
+
+```bash
+python tools/verify.py song.ogg
+```
+
 需要 `numpy` 与 `soundfile`。
 
 WASM 侧另有两个检查。`tools/wasm_contract.py` 静态解析二进制，确认导出
