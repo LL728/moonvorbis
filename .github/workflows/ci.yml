@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check-build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+
+      - name: MoonBit 版本
+        run: moon version
+
+      - name: 格式检查
+        run: moon fmt --check
+
+      - name: 检查
+        run: moon check --target wasm-gc --deny-warn
+
+      - name: 构建
+        run: moon build --target wasm-gc
+
+      - name: 测试
+        run: moon test --target wasm-gc
