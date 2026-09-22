@@ -20,6 +20,9 @@ jobs:
       - name: MoonBit 版本
         run: moon version
 
+      - name: 更新注册表索引
+        run: moon update
+
       - name: 格式检查
         run: moon fmt --check
 
