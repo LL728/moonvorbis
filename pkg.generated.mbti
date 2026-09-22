@@ -10,6 +10,10 @@ pub const FLAG_EOS : Int = 0x04
 
 pub fn compute_window(Int) -> Array[Float]
 
+pub fn decode_ogg(Bytes) -> Result[VorbisStream, String]
+
+pub fn decode_ogg_base64(String) -> String
+
 pub fn inverse_mdct(Array[Float], Int) -> Unit
 
 pub fn ogg_crc32(Bytes) -> UInt
@@ -17,6 +21,8 @@ pub fn ogg_crc32(Bytes) -> UInt
 pub fn ogg_crc32_update(UInt, Bytes, Int, Int) -> UInt
 
 pub fn parse_modes(BitReader) -> Result[Array[Mode], String]
+
+pub fn wav_encode_pcm16(Array[Array[Float]], Int) -> Bytes
 
 // Errors
 
@@ -47,6 +53,8 @@ pub struct Codebook {
 }
 pub fn Codebook::decode_scalar(Self, BitReader) -> Result[Int, String]
 pub fn Codebook::decode_vq(Self, BitReader, Array[Float], Int, Int) -> Result[Unit, String]
+pub fn Codebook::decode_vq_set(Self, BitReader, Array[Float], Int, Int) -> Result[Unit, String]
+pub fn Codebook::decode_vq_step(Self, BitReader, Array[Float], Int, Int, Int) -> Result[Unit, String]
 pub fn Codebook::parse(BitReader) -> Result[Self, String]
 
 pub struct Decoder {
@@ -54,11 +62,28 @@ pub struct Decoder {
   setup : VorbisSetup
   window0 : Array[Float]
   window1 : Array[Float]
-  previous_window : Array[Float]
-  mut previous_length : Int
+  previous_window : Array[Array[Float]]
+  previous_length : Array[Int]
 }
-pub fn Decoder::decode_packet(Self, BitReader) -> Result[Array[Float], String]
+pub fn Decoder::decode_packet(Self, BitReader) -> Result[Array[Array[Float]], String]
 pub fn Decoder::new(VorbisInfo, VorbisSetup) -> Self
+
+pub enum Floor {
+  Type0(Floor0)
+  Type1(Floor1)
+}
+
+pub struct Floor0 {
+  order : Int
+  rate : Int
+  bark_map_size : Int
+  amplitude_bits : Int
+  amplitude_offset : Int
+  books : Array[Int]
+}
+pub fn Floor0::decode(Self, BitReader, Array[Codebook]) -> Result[Array[Float]?, String]
+pub fn Floor0::parse(BitReader, Array[Codebook]) -> Result[Self, String]
+pub fn Floor0::synthesize(Self, Array[Float], Int) -> Array[Float]
 
 pub struct Floor1 {
   partitions : Int
@@ -134,7 +159,7 @@ pub struct Residue {
   cascade : Array[Int]
   residue_books : Array[Array[Int]]
 }
-pub fn Residue::decode(Self, BitReader, Array[Codebook], Array[Float], Int) -> Result[Unit, String]
+pub fn Residue::decode(Self, BitReader, Array[Codebook], Array[Array[Float]], Int) -> Result[Unit, String]
 pub fn Residue::parse(BitReader) -> Result[Self, String]
 
 pub struct VorbisComment {
@@ -153,12 +178,31 @@ pub fn VorbisInfo::parse(Bytes) -> Result[Self, String]
 
 pub struct VorbisSetup {
   codebooks : Array[Codebook]
-  floors : Array[Floor1]
+  floors : Array[Floor]
   residues : Array[Residue]
   mappings : Array[Mapping]
   modes : Array[Mode]
 }
 pub fn VorbisSetup::parse(Bytes, Int) -> Result[Self, String]
+
+pub struct VorbisStream {
+  assembler : PacketAssembler
+  mut header_state : Int
+  mut info : VorbisInfo?
+  mut comment : VorbisComment?
+  mut setup : VorbisSetup?
+  mut decoder : Decoder?
+  pcm : Array[Array[Float]]
+  mut last_granule : Int64
+}
+pub fn VorbisStream::channels(Self) -> Int
+pub fn VorbisStream::granule_position(Self) -> Int64
+pub fn VorbisStream::is_ready(Self) -> Bool
+pub fn VorbisStream::new() -> Self
+pub fn VorbisStream::pcm(Self) -> Array[Array[Float]]
+pub fn VorbisStream::push_page(Self, OggPage) -> Result[Unit, String]
+pub fn VorbisStream::sample_rate(Self) -> Int
+pub fn VorbisStream::trim_to_granule(Self) -> Unit
 
 // Type aliases
 
