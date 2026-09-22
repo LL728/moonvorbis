@@ -20,6 +20,23 @@
 - **IMDCT 与重叠相加**：含长短块（window switching）切换
 - **输出**：多声道 16-bit PCM WAV
 
+## 安装
+
+作为依赖引入：
+
+```bash
+moon add LL728/moonvorbis
+```
+
+已发布到 mooncakes.io：<https://mooncakes.io/docs/LL728/moonvorbis>。
+
+在本仓库内开发：
+
+```bash
+moon check --target wasm-gc
+moon test  --target wasm-gc
+```
+
 ## 用法
 
 ### 命令行
@@ -163,3 +180,21 @@ msedge --headless=new --virtual-time-budget=20000 \
 ## 限制
 
 - 只做解码，不做编码
+
+## 参考与许可
+
+本项目为原创实现，按 [Vorbis I specification](https://xiph.org/vorbis/doc/Vorbis_I_spec.html)
+（Xiph.Org Foundation）从零开发，未移植任何上游代码，仓库内不含上游源文件。
+本项目采用 [Apache-2.0](LICENSE) 许可证。
+
+开发过程中参考了以下开源项目，仅作为规范的独立读法参照与输出对照，
+其源码未并入本项目：
+
+| 项目 | 链接 | 许可证 | 参考范围 |
+| --- | --- | --- | --- |
+| stb_vorbis | <https://github.com/nothings/stb/blob/master/stb_vorbis.c> | public domain | 作为同一份规范的确定性读法，用于定位 7 处规范理解偏差 |
+| libvorbis | <https://github.com/xiph/vorbis> | BSD-3-Clause | floor 0 合成公式的期望值推算；`sequence_p` 语义歧义时以其为准；工具脚本的输出对照参考实现 |
+
+`tools/` 下的验证脚本调用 libvorbis（经 Python soundfile / libsndfile）作为对照实现，
+不复制其代码。
+
