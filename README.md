@@ -168,7 +168,7 @@ msedge --headless=new --virtual-time-budget=20000 \
   --dump-dom http://localhost:8000/demo/headless-test.html
 ```
 
-随附的 `demo/sample.ogg` 在浏览器中解出 2ch / 44100Hz / 44608 帧，与命令行
+随附的 `demo/sample.ogg` 在浏览器中解出 2ch / 44100Hz / 44100 帧，与命令行
 解码的产物逐字节相同。
 
 ## 开发记录
