@@ -39,10 +39,50 @@ moon test  --target wasm-gc
 
 ## 用法
 
+### 作为库使用
+
+引入依赖后（见上文「安装」），解码只需 `decode_ogg` 与 `wav_encode_pcm16` 两步：
+
+```moonbit
+// moon.pkg
+import {
+  "LL728/moonvorbis",
+  "moonbitlang/x/fs",
+}
+
+// main.mbt —— 把 in.ogg 解成 16-bit PCM WAV
+fn main {
+  try {
+    let data = @fs.read_file_to_bytes("in.ogg")
+    match @moonvorbis.decode_ogg(data) {
+      Ok(stream) => {
+        let wav = @moonvorbis.wav_encode_pcm16(
+          stream.pcm(),
+          stream.sample_rate(),
+        )
+        @fs.write_bytes_to_file("out.wav", wav)
+        println(
+          "采样率 \{stream.sample_rate()} Hz，声道 \{stream.channels()}，样本 \{stream.pcm()[0].length()}",
+        )
+      }
+      Err(e) => println("解码失败: \{e}")
+    }
+  } catch {
+    @fs.IOError::IOError(msg) => println("I/O 错误: \{msg}")
+  }
+}
+```
+
+`decode_ogg` 一次性解完整文件，返回 `Result[VorbisStream, String]`。需要边收边解时改用流式入口
+`VorbisStream::new()`，把 OGG 页逐块喂给 `push_page`，`is_ready()` 为真后即可读 `pcm()`——
+两条路径共用同一套解码实现与 granule position 裁剪逻辑。
+
 ### 命令行
 
+包内自带一份 `demo/sample.ogg`，clone 后可直接跑通：
+
 ```bash
-moon run cmd/main --target wasm-gc -- input.ogg output.wav
+moon run cmd/main --target wasm-gc -- demo/sample.ogg out.wav
 ```
 
 省略输出路径时写入 `input.ogg.wav`。
