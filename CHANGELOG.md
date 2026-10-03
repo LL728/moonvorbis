@@ -3,13 +3,16 @@
 本项目遵循[语义化版本](https://semver.org/lang/zh-CN/)。版本号与日期以
 [mooncakes.io](https://mooncakes.io/docs/LL728/moonvorbis) 上的发布记录为准。
 
-## [未发布]
+## [0.1.3] - 2026-10-03
 
 ### 修复
 
 - README 的安装说明漏了 `moon add moonbitlang/x`：库示例要 `import "moonbitlang/x/fs"`，
   而依赖不会跟着包传递，新建项目照着 README 抄会在 `moon check` 时报
   「containing module is not imported」。已在全新项目里按 README 走通验证。
+
+0.1.2 发布时这份说明还没修，包内的 README 是修复前的快照，0.1.3 是第一个带上正确
+安装说明的版本。本次只改文档与版本号，代码与解码路径无变化。
 
 ## [0.1.2] - 2026-10-03
 
@@ -55,7 +58,7 @@
 - 对外接口 `decode_ogg` 与 `VorbisStream`，输出 16-bit PCM WAV
 - 命令行工具、浏览器 WASM demo、与 libvorbis 的交叉验证脚本
 
-[未发布]: https://github.com/LL728/moonvorbis/compare/v0.1.2...HEAD
+[0.1.3]: https://github.com/LL728/moonvorbis/releases/tag/v0.1.3
 [0.1.2]: https://github.com/LL728/moonvorbis/releases/tag/v0.1.2
 [0.1.1]: https://mooncakes.io/docs/LL728/moonvorbis
 [0.1.0]: https://mooncakes.io/docs/LL728/moonvorbis
