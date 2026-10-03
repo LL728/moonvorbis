@@ -157,6 +157,7 @@ Builtins：Chrome / Edge 130+、Firefox 134+，Safari 目前不支持。
 | `wav.mbt` | WAV 序列化 |
 | `wasm_api.mbt` | WASM 导出接口 |
 | `cmd/main/` | 命令行入口 |
+| `CHANGELOG.md` | 各版本的改动记录 |
 | `index.html` | 项目主页（GitHub Pages 的根路径） |
 | `tools/verify.py` | 对 libvorbis 的交叉验证脚本 |
 | `tools/vorbisgen.py` | 按规范直接拼出 OGG/Vorbis 测试流 |
@@ -269,6 +270,13 @@ python -m http.server 8000
 
 `tools/` 下的验证脚本调用 libvorbis（经 Python soundfile / libsndfile）作为对照实现，
 不复制其代码。
+
+依赖只有下面两条，都是 Apache-2.0，与本项目许可证一致：
+
+| 依赖 | 链接 | 许可证 | 用途 |
+| --- | --- | --- | --- |
+| moonbitlang/core | <https://github.com/moonbitlang/core> | Apache-2.0 | 缓冲区、base64、UTF-8 解码与数学函数；随 MoonBit 工具链提供 |
+| moonbitlang/x | <https://github.com/moonbitlang/x> | Apache-2.0 | 只有命令行入口用到（`moonbitlang/x/fs`）；解码库本身不依赖 |
 
 仓库内的测试素材与产物均为本项目自行生成，不含任何第三方素材：
 
