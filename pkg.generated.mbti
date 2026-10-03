@@ -166,6 +166,8 @@ pub struct VorbisComment {
   vendor : String
   comments : Array[String]
 }
+pub fn VorbisComment::get(Self, String) -> String?
+pub fn VorbisComment::get_all(Self, String) -> Array[String]
 pub fn VorbisComment::parse(Bytes) -> Result[Self, String]
 
 pub struct VorbisInfo {
@@ -186,18 +188,12 @@ pub struct VorbisSetup {
 pub fn VorbisSetup::parse(Bytes, Int) -> Result[Self, String]
 
 pub struct VorbisStream {
-  assembler : PacketAssembler
-  mut header_state : Int
-  mut info : VorbisInfo?
-  mut comment : VorbisComment?
-  mut setup : VorbisSetup?
-  mut decoder : Decoder?
-  pcm : Array[Array[Float]]
-  mut last_granule : Int64
+  // private fields
 }
 pub fn VorbisStream::channels(Self) -> Int
 pub fn VorbisStream::granule_position(Self) -> Int64
 pub fn VorbisStream::is_ready(Self) -> Bool
+pub fn VorbisStream::metadata(Self) -> VorbisComment?
 pub fn VorbisStream::new() -> Self
 pub fn VorbisStream::pcm(Self) -> Array[Array[Float]]
 pub fn VorbisStream::push_page(Self, OggPage) -> Result[Unit, String]

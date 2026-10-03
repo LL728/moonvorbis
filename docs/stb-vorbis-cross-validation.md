@@ -464,7 +464,7 @@ floor 0 **没有独立的标志位**——幅度字段兼作标志，读出 0 �
 
 至此 Vorbis I 的解码通路——floor 的两种形式、residue 的三种形式、codebook 的三种 lookup——全部走通。
 
-验证覆盖：十个真实文件（arcade / pygame / MathJax 的音效素材，单声道与立体声）相关系数 0.9970–0.9999；生成的素材补齐了真实文件走不到的分支——granule 裁剪 12 组、residue type 0/1 单声道与多声道与 `sequence_p` 共 14 组、floor 0 的奇数阶与偶数阶与多声道与多采样率共 9 组，与 libvorbis 的相关系数均为 1.000000。另有 69 个单元测试。
+验证覆盖：十个真实文件（arcade / pygame / MathJax 的音效素材，单声道与立体声）相关系数 0.9970–0.9999；生成的素材补齐了真实文件走不到的分支——granule 裁剪 12 组、residue type 0/1 单声道与多声道与 `sequence_p` 共 14 组、floor 0 的奇数阶与偶数阶与多声道与多采样率共 9 组，与 libvorbis 的相关系数均为 1.000000。另有 77 个单元测试。
 
 除命令行外，也编译了 WebAssembly 版本，可以在浏览器里直接解码播放——见 [`demo/`](../demo/)。
 演示动画由 `tools/make_demo_gif.py` 对 `demo/record.html` 逐帧截图合成，页面按

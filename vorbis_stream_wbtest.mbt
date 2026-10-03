@@ -10,7 +10,6 @@ fn stream_with(pcm : Array[Array[Float]], granule : Int64) -> VorbisStream {
     header_state: 3,
     info: None,
     comment: None,
-    setup: None,
     decoder: None,
     pcm,
     last_granule: granule,
@@ -50,4 +49,28 @@ test "trim_to_granule 不扩张数组" {
   let stream = stream_with([[1.0, 2.0]], 100L)
   stream.trim_to_granule()
   @test.assert_eq(stream.pcm()[0].length(), 2)
+}
+
+///|
+/// comment 头还没解析时 metadata() 返回 None。
+test "metadata 在 comment 头之前为 None" {
+  let stream = stream_with([[1.0]], -1L)
+  match stream.metadata() {
+    None => ()
+    Some(_) => @test.fail("expected no metadata")
+  }
+}
+
+///|
+/// comment 头解析后 metadata() 暴露元数据，且查询大小写不敏感。
+test "metadata 在 comment 头之后可用" {
+  let stream = stream_with([[1.0]], -1L)
+  stream.comment = Some({ vendor: "moonx", comments: ["TITLE=X"], })
+  match stream.metadata() {
+    Some(c) => {
+      @test.assert_eq(c.vendor, "moonx")
+      @test.assert_eq(c.get("title"), Some("X"))
+    }
+    None => @test.fail("expected metadata")
+  }
 }

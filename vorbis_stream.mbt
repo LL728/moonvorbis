@@ -6,16 +6,18 @@
 ///|
 /// 从 OGG 页流解码 Vorbis 音频的状态机。
 /// 依次消费 identification / comment / setup 三个 header packet，之后的 packet 视为音频帧。
+/// 内部状态一律私有：`push_page` 逐步推进的状态机有先后依赖（header 未就绪就读不了
+/// PCM），字段放开写会让外部绕过这个次序。读取统一走下面的访问器。
 pub struct VorbisStream {
-  assembler : PacketAssembler
-  mut header_state : Int
-  mut info : VorbisInfo?
-  mut comment : VorbisComment?
-  mut setup : VorbisSetup?
-  mut decoder : Decoder?
-  pcm : Array[Array[Float]]
+  priv assembler : PacketAssembler
+  priv mut header_state : Int
+  priv mut info : VorbisInfo?
+  priv mut comment : VorbisComment?
+  // setup 不在流上留存：解析完即交给 Decoder，此后不再需要。
+  priv mut decoder : Decoder?
+  priv pcm : Array[Array[Float]]
   // 已见到的最大 granule position，即流中合法的 PCM 帧总数。-1 表示未见到。
-  mut last_granule : Int64
+  priv mut last_granule : Int64
 }
 
 ///|
@@ -26,7 +28,6 @@ pub fn VorbisStream::new() -> VorbisStream {
     header_state: 0,
     info: None,
     comment: None,
-    setup: None,
     decoder: None,
     pcm: [],
     last_granule: -1L,
@@ -69,7 +70,6 @@ pub fn VorbisStream::push_page(
           Some(i) =>
             match VorbisSetup::parse(packet, i.channels) {
               Ok(s) => {
-                self.setup = Some(s)
                 self.decoder = Some(Decoder::new(i, s))
                 self.header_state = 3
               }
@@ -103,6 +103,15 @@ pub fn VorbisStream::push_page(
 /// 三个 header 是否已全部解析完成。
 pub fn VorbisStream::is_ready(self : VorbisStream) -> Bool {
   self.header_state >= 3
+}
+
+///|
+/// comment 头里的元数据（TITLE / ARTIST 等）；comment 头尚未解析时为 `None`。
+///
+/// 播放器可在 `is_ready()` 为真后读它来显示曲目信息。
+/// `decode_ogg` 返回的流一定已解析过 comment 头，除非文件在该头之前就结束了。
+pub fn VorbisStream::metadata(self : VorbisStream) -> VorbisComment? {
+  self.comment
 }
 
 ///|

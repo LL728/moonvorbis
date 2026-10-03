@@ -18,6 +18,7 @@
 - **Residue**：type 0 / type 1 / type 2，含多声道交错 VQ
 - **立体声耦合**：magnitude/angle 反变换
 - **IMDCT 与重叠相加**：含长短块（window switching）切换
+- **元数据**：comment 头里的 vendor 与 TITLE / ARTIST 等标签，按 key 查询（不区分 ASCII 大小写，支持同名标签重复出现）
 - **输出**：多声道 16-bit PCM WAV
 
 ## 安装
@@ -50,7 +51,7 @@ import {
   "moonbitlang/x/fs",
 }
 
-// main.mbt —— 把 in.ogg 解成 16-bit PCM WAV
+// main.mbt —— 把 in.ogg 解成 16-bit PCM WAV，并打印元数据
 fn main {
   try {
     let data = @fs.read_file_to_bytes("in.ogg")
@@ -64,6 +65,14 @@ fn main {
         println(
           "采样率 \{stream.sample_rate()} Hz，声道 \{stream.channels()}，样本 \{stream.pcm()[0].length()}",
         )
+        match stream.metadata() {
+          Some(meta) =>
+            match meta.get("TITLE") {
+              Some(title) => println("标题: \{title}")
+              None => ()
+            }
+          None => ()
+        }
       }
       Err(e) => println("解码失败: \{e}")
     }
@@ -77,6 +86,11 @@ fn main {
 `VorbisStream::new()`，把 OGG 页逐块喂给 `push_page`，`is_ready()` 为真后即可读 `pcm()`——
 两条路径共用同一套解码实现与 granule position 裁剪逻辑。
 
+曲目信息走 `stream.metadata()`，返回 `VorbisComment?`（comment 头解析完成后为 `Some`）。
+`get(key)` 取单值，`get_all(key)` 取同名标签的全部取值——规范允许同一个 key 重复出现，
+例如多位 ARTIST。key 按规范不区分 ASCII 大小写，`"title"` 与 `"TITLE"` 等价；取不到时
+`get` 返回 `None`，`get_all` 返回空数组。
+
 ### 命令行
 
 包内自带一份 `demo/sample.ogg`，clone 后可直接跑通：
@@ -85,7 +99,8 @@ fn main {
 moon run cmd/main --target wasm-gc -- demo/sample.ogg out.wav
 ```
 
-省略输出路径时写入 `input.ogg.wav`。
+省略输出路径时写入 `input.ogg.wav`。文件里若有 TITLE / ARTIST / ALBUM 标签，
+会一并打印出来（`demo/sample.ogg` 没有标签，所以上面这条命令只输出采样率与声道）。
 
 ### 浏览器
 
@@ -126,7 +141,7 @@ Builtins：Chrome / Edge 130+、Firefox 134+，Safari 目前不支持。
 | `ogg_page.mbt` | 页头解析与校验 |
 | `ogg_packet.mbt` | 跨页 packet 组装 |
 | `vorbis_info.mbt` | identification 头 |
-| `vorbis_comment.mbt` | comment 头 |
+| `vorbis_comment.mbt` | comment 头解析与元数据查询（`get` / `get_all`） |
 | `vorbis_setup.mbt` | setup 头，聚合下列子结构 |
 | `codebook.mbt` | codebook 与 Huffman/VQ 解码 |
 | `huffman.mbt` | Huffman 表构建 |
@@ -157,7 +172,7 @@ Builtins：Chrome / Edge 130+、Firefox 134+，Safari 目前不支持。
 ## 测试
 
 ```bash
-moon test
+moon test --target wasm-gc    # 77 个用例
 ```
 
 单元测试验证的是「实现与理解自洽」，抓不到规范理解本身的偏差。作为补充，

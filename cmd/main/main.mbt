@@ -24,6 +24,16 @@ fn main {
         println(
           "采样率: \{stream.sample_rate()} Hz, 声道: \{channels}, 样本: \{frames}",
         )
+        match stream.metadata() {
+          Some(meta) =>
+            for key in ["TITLE", "ARTIST", "ALBUM"] {
+              match meta.get(key) {
+                Some(value) => println("\{key}: \{value}")
+                None => ()
+              }
+            }
+          None => ()
+        }
         let wav = @moonvorbis.wav_encode_pcm16(
           stream.pcm(),
           stream.sample_rate(),
