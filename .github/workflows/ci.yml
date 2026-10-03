@@ -39,7 +39,7 @@ jobs:
         run: python3 tools/wasm_contract.py
 
       - name: 安装 Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 24
 
