@@ -29,6 +29,17 @@
 moon add LL728/moonvorbis
 ```
 
+下面的库示例和命令行入口都要读写文件，所以还得加上 `moonbitlang/x`——依赖不会
+跟着包传递，只加 `LL728/moonvorbis` 的话 `import "moonbitlang/x/fs"` 会报
+「containing module is not imported」：
+
+```bash
+moon add moonbitlang/x
+```
+
+只用 `decode_ogg` 这类纯内存接口（传 `Bytes`、收 `Result`）的话，加
+`LL728/moonvorbis` 一条就够，解码库本身不依赖 `moonbitlang/x`。
+
 已发布到 mooncakes.io：<https://mooncakes.io/docs/LL728/moonvorbis>。
 
 在本仓库内开发：

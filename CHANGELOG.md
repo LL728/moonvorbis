@@ -5,6 +5,12 @@
 
 ## [未发布]
 
+### 修复
+
+- README 的安装说明漏了 `moon add moonbitlang/x`：库示例要 `import "moonbitlang/x/fs"`，
+  而依赖不会跟着包传递，新建项目照着 README 抄会在 `moon check` 时报
+  「containing module is not imported」。已在全新项目里按 README 走通验证。
+
 ## [0.1.2] - 2026-10-03
 
 ### 新增
