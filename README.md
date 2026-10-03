@@ -174,7 +174,11 @@ Builtins：Chrome / Edge 130+、Firefox 134+，Safari 目前不支持。
 
 ```bash
 moon test --target wasm-gc    # 77 个用例
+moon test --target js         # 同一套用例，js 后端
 ```
+
+解码逻辑只用后端无关的 MoonBit 特性，两个后端跑的是同一套用例，CI 上都会跑。
+默认目标是 wasm-gc（`moon.mod` 的 `preferred_target`），浏览器演示用的也是它。
 
 单元测试验证的是「实现与理解自洽」，抓不到规范理解本身的偏差。作为补充，
 `tools/verify.py` 从零生成已知内容的 OGG、用本解码器解出 WAV，再和 libvorbis

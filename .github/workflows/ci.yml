@@ -12,6 +12,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # js 后端要 Node 才能跑，先装好
+      - name: 安装 Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
       - name: 安装 MoonBit
         run: |
           curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
@@ -35,13 +41,12 @@ jobs:
       - name: 测试
         run: moon test --target wasm-gc
 
+      # 解码逻辑不依赖后端特性，js 后端应解出同样的结果
+      - name: 测试（js 后端）
+        run: moon test --target js
+
       - name: WASM 契约检查
         run: python3 tools/wasm_contract.py
-
-      - name: 安装 Node
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
 
       - name: WASM 运行时冒烟与产物新鲜度
         run: |
