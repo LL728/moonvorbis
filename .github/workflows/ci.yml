@@ -34,3 +34,23 @@ jobs:
 
       - name: 测试
         run: moon test --target wasm-gc
+
+      - name: WASM 契约检查
+        run: python3 tools/wasm_contract.py
+
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: WASM 运行时冒烟与产物新鲜度
+        run: |
+          moon build --target wasm-gc --release
+          fresh=_build/wasm-gc/release/build/moonvorbis.wasm
+          # demo/moonvorbis.wasm 是 Pages 演示真正加载的那份，不能落后于源码
+          node tools/wasm_smoke.mjs "$RUNNER_TEMP/fresh.wav" "$fresh"
+          node tools/wasm_smoke.mjs "$RUNNER_TEMP/committed.wav" demo/moonvorbis.wasm
+          cmp "$RUNNER_TEMP/fresh.wav" "$RUNNER_TEMP/committed.wav"
+          # wasm 与命令行共用同一套解码实现，解同一条流应逐字节相同
+          moon run cmd/main --target wasm-gc -- demo/sample.ogg "$RUNNER_TEMP/cli.wav"
+          cmp "$RUNNER_TEMP/fresh.wav" "$RUNNER_TEMP/cli.wav"

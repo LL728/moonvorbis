@@ -164,6 +164,7 @@ Builtins：Chrome / Edge 130+、Firefox 134+，Safari 目前不支持。
 | `tools/residue_sweep.py` | 扫 residue 各条通路 |
 | `tools/floor0_sweep.py` | 扫 floor 0 各条通路 |
 | `tools/wasm_contract.py` | 静态校验 wasm 的导入/导出契约 |
+| `tools/wasm_smoke.mjs` | 在 Node 里跑通 wasm 解码并与命令行产物比对 |
 | `tools/make_demo_gif.py` | 逐帧截图并合成演示 GIF |
 | `demo/headless-test.html` | 无头浏览器冒烟测试 |
 | `demo/decoder.js` | 浏览器侧解码胶水，两个演示页共用 |
@@ -212,19 +213,31 @@ floor 0 连 stb_vorbis 都直接拒收（`VORBIS_feature_not_supported`），lib
 分支，它还有一处容易读错的地方：**floor 0 没有「floor 已用」标志位**，幅度字段
 本身兼作标志，读出 0 就是本帧没有 floor 数据。9 组用例的相关系数均为 1.000000。
 
-WASM 侧另有两个检查。`tools/wasm_contract.py` 静态解析二进制，确认导出
-`decode_ogg_base64` 的签名是 `String -> String`，且除引擎内置外没有任何导入
-（`demo/main.js` 用的是空 imports 对象，多一条导入实例化就会失败）。
-`demo/headless-test.html` 则在无头浏览器里跑完整链路，把 WAV 校验和写进页面：
+WASM 侧另有两个检查，都跑在 CI 上（见 `.github/workflows/ci.yml`）。
+`tools/wasm_contract.py` 静态解析二进制，确认导出 `decode_ogg_base64` 的签名是
+`String -> String`，且除引擎内置外没有任何导入（`demo/main.js` 用的是空 imports
+对象，多一条导入实例化就会失败）。`tools/wasm_smoke.mjs` 在 Node 里真正跑一遍
+解码，再拿产物和命令行解码的输出逐字节比对：
 
 ```bash
 python tools/wasm_contract.py
-msedge --headless=new --virtual-time-budget=20000 \
-  --dump-dom http://localhost:8000/demo/headless-test.html
+node tools/wasm_smoke.mjs out.wav
+moon run cmd/main --target wasm-gc -- demo/sample.ogg cli.wav
+cmp out.wav cli.wav
 ```
 
-随附的 `demo/sample.ogg` 在浏览器中解出 2ch / 44100Hz / 44100 帧，与命令行
-解码的产物逐字节相同。
+`wasm_smoke.mjs` 需要支持 WebAssembly JS String Builtins 的 Node（22 及以上）。
+CI 里还会用刚构建出的 wasm 跑一遍、和仓库内 `demo/moonvorbis.wasm` 的产物比对，
+防止 Pages 演示加载的那份产物落后于源码。`demo/headless-test.html` 是同一件事的
+浏览器版本，把 WAV 校验和写进页面，可在浏览器里人工复核：
+
+```bash
+python -m http.server 8000
+# 打开 http://localhost:8000/demo/headless-test.html
+```
+
+随附的 `demo/sample.ogg` 解出 2ch / 44100Hz / 44100 帧；Node 与命令行两条路径
+的产物逐字节相同。
 
 ## 开发记录
 
