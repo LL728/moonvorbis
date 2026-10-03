@@ -238,3 +238,14 @@ msedge --headless=new --virtual-time-budget=20000 \
 `tools/` 下的验证脚本调用 libvorbis（经 Python soundfile / libsndfile）作为对照实现，
 不复制其代码。
 
+仓库内的测试素材与产物均为本项目自行生成，不含任何第三方素材：
+
+| 文件 | 来源 |
+| --- | --- |
+| `demo/sample.ogg` | 按 `tools/verify.py` 的信号规格生成：左声道 440 Hz、右声道 554 Hz 的立体声正弦波，44.1 kHz、1 秒，无第三方内容 |
+| `demo/moonvorbis.wasm` | 由本仓库源码构建（`moon build --target wasm-gc --release`） |
+| `demo/demo.gif` | 由 `tools/make_demo_gif.py` 对 `demo/record.html` 逐帧截图合成，波形取自真实解码结果 |
+
+`tools/vorbisgen.py` 及各 sweep 脚本直接按 Vorbis I 规范拼接比特流，所生成的测试流
+不派生于任何现有素材。
+
