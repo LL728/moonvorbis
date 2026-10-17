@@ -4,7 +4,7 @@
 
 ///|
 /// 32 位位反转。
-fn bit_reverse(x : UInt) -> UInt {
+fn bit_reverse(x : UInt32) -> UInt32 {
   let mut r = 0U
   let mut v = x
   for _ in 0..<32 {
@@ -17,9 +17,9 @@ fn bit_reverse(x : UInt) -> UInt {
 ///|
 /// 从码长数组计算每个 entry 的码字（Vorbis canonical Huffman，码字已 bit_reverse）。
 /// 码长 <= 0 的 entry 视为 hole，码字保持 0。
-fn compute_codewords(lengths : Array[Int]) -> Result[Array[UInt], String] {
+fn compute_codewords(lengths : Array[Int32]) -> Result[Array[UInt32], String] {
   let n = lengths.length()
-  let codewords : Array[UInt] = []
+  let codewords : Array[UInt32] = []
   for _ in 0..<n {
     codewords.push(0U)
   }
@@ -31,9 +31,10 @@ fn compute_codewords(lengths : Array[Int]) -> Result[Array[UInt], String] {
   if k == n {
     return Ok(codewords)
   }
-  // available[i]：长度为 i 的可用码字（左对齐到 32 位）
-  let available : Array[UInt] = []
-  for _ in 0..<32 {
+  // available[i]：长度为 i 的可用码字（左对齐到 32 位）。
+  // 索引可达 lengths 值本身（最大 32），所以数组要有 33 个位置。
+  let available : Array[UInt32] = []
+  for _ in 0..<=32 {
     available.push(0U)
   }
   codewords[k] = 0U
@@ -69,23 +70,23 @@ fn compute_codewords(lengths : Array[Int]) -> Result[Array[UInt], String] {
 ///
 /// 字段均为排序后（按码字值升序）的码字、码长与对应 entry 索引。
 pub struct HuffmanTable {
-  codewords : Array[UInt]
-  lengths : Array[Int]
-  symbols : Array[Int]
+  codewords : Array[UInt32]
+  lengths : Array[Int32]
+  symbols : Array[Int32]
 }
 
 ///|
 /// 由码长数组构建解码表。
 pub fn HuffmanTable::build(
-  lengths : Array[Int],
+  lengths : Array[Int32],
 ) -> Result[HuffmanTable, String] {
   let codewords = match compute_codewords(lengths) {
     Ok(c) => c
     Err(e) => return Err(e)
   }
-  let table_codewords : Array[UInt] = []
-  let table_lengths : Array[Int] = []
-  let table_symbols : Array[Int] = []
+  let table_codewords : Array[UInt32] = []
+  let table_lengths : Array[Int32] = []
+  let table_symbols : Array[Int32] = []
   for i in 0..<lengths.length() {
     if lengths[i] > 0 {
       table_codewords.push(codewords[i])
@@ -105,8 +106,8 @@ pub fn HuffmanTable::build(
 pub fn HuffmanTable::decode(
   self : HuffmanTable,
   br : BitReader,
-) -> Result[Int, String] {
-  let mut acc : UInt = 0U
+) -> Result[Int32, String] {
+  let mut acc : UInt32 = 0U
   for n in 0..<32 {
     acc = acc | (br.read_bit().reinterpret_as_uint() << n)
     for i in 0..<self.codewords.length() {
