@@ -175,6 +175,7 @@ Builtins：Chrome / Edge 130+、Firefox 134+，Safari 目前不支持。
 | `tools/granule_sweep.py` | 扫 granule position 裁剪行为 |
 | `tools/residue_sweep.py` | 扫 residue 各条通路 |
 | `tools/floor0_sweep.py` | 扫 floor 0 各条通路 |
+| `tools/real_corpus.py` | 多声道/静音声道真实语料与 libvorbis 逐声道对拍 |
 | `tools/wasm_contract.py` | 静态校验 wasm 的导入/导出契约 |
 | `tools/wasm_smoke.mjs` | 在 Node 里跑通 wasm 解码并与命令行产物比对 |
 | `tools/make_demo_gif.py` | 逐帧截图并合成演示 GIF |
@@ -206,6 +207,15 @@ python tools/verify.py --stereo --noise    # 相关系数 0.9970
 
 ```bash
 python tools/verify.py song.ogg
+```
+
+多声道与静音声道的系统性覆盖走 `tools/real_corpus.py`：用 libvorbis 编出
+1/2/3/4/6/8 声道的正弦、噪声、混合素材与「某一声道静音」的素材，逐声道对拍。
+静音声道专门盯住一条历史缺陷——floor 未使用的声道在非交错 residue 路径里
+必须连 classbook 码字一起跳过，只跳 VQ 会让位流超前、最终读穿 packet：
+
+```bash
+python tools/real_corpus.py     # 56 个用例，约十分钟
 ```
 
 需要 `numpy` 与 `soundfile`。
