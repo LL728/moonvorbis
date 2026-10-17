@@ -185,7 +185,7 @@ Builtins：Chrome / Edge 130+、Firefox 134+，Safari 目前不支持。
 ## 测试
 
 ```bash
-moon test --target wasm-gc    # 77 个用例
+moon test --target wasm-gc    # 78 个用例
 moon test --target js         # 同一套用例，js 后端
 ```
 

@@ -3,6 +3,22 @@
 本项目遵循[语义化版本](https://semver.org/lang/zh-CN/)。版本号与日期以
 [mooncakes.io](https://mooncakes.io/docs/LL728/moonvorbis) 上的发布记录为准。
 
+## [未发布]
+
+### 修复
+
+- **含静音声道的 3/4/8 声道文件解码崩溃**。非交错 residue 路径里，标记为
+  skip 的声道（floor 未使用且无耦合）跳过了 VQ 数据，classbook 码字却照读，
+  位流因此超前，最终把 packet 读穿。libvorbis 编码的 silent0/silent1
+  3/4/8 声道素材此前全部崩溃，修复后 56 例真实语料 0 异常。
+- **32 位码字流越界崩溃**。Huffman 码长数组只开了 32 个位置，32 位码字
+  要写到第 33 个。
+
+### 变更
+
+- `Residue::decode` 增加 `skip` 参数（标记不参与本帧解码的声道），
+  **公开签名有变化**。
+
 ## [0.1.3] - 2026-10-03
 
 ### 修复
