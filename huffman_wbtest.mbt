@@ -54,3 +54,29 @@ test "huffman decode：变长码" {
     Err(e) => @test.fail(e)
   }
 }
+
+///|
+/// 32 位码字：Vorbis 允许码长到 32，available 表必须能索引到 32 本身。
+/// 修复前数组只有 32 个位置（0..<32），这一组会越界崩溃。
+test "huffman build/decode：32 位码字" {
+  let t = match HuffmanTable::build([32, 32]) {
+    Ok(t) => t
+    Err(e) => @test.fail(e)
+  }
+  @test.assert_eq(t.codewords.length(), 2)
+  @test.assert_eq(t.lengths[0], 32)
+  @test.assert_eq(t.lengths[1], 32)
+  @test.assert_eq(t.codewords[0], 0U)
+  // 第二个码字是 1 的 32 位反转
+  @test.assert_eq(t.codewords[1], 0x80000000U)
+  // 32 个 0 比特 -> entry 0
+  match t.decode(BitReader::new(b"\x00\x00\x00\x00")) {
+    Ok(s) => @test.assert_eq(s, 0)
+    Err(e) => @test.fail(e)
+  }
+  // 最高位置 1 -> entry 1
+  match t.decode(BitReader::new(b"\x00\x00\x00\x80")) {
+    Ok(s) => @test.assert_eq(s, 1)
+    Err(e) => @test.fail(e)
+  }
+}
