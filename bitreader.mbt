@@ -16,7 +16,7 @@
 /// * `pos` : 当前读取位置，单位是位，从 0 开始计数
 struct BitReader {
   data : Bytes
-  mut pos : Int
+  mut pos : Int32
 }
 
 ///|
@@ -27,32 +27,32 @@ pub fn BitReader::new(data : Bytes) -> BitReader {
 
 ///|
 /// 返回底层字节序列的总位数（`data.length() * 8`）。
-pub fn BitReader::total_bits(self : BitReader) -> Int {
+pub fn BitReader::total_bits(self : BitReader) -> Int32 {
   self.data.length() * 8
 }
 
 ///|
 /// 返回当前位位置。
-pub fn BitReader::tell(self : BitReader) -> Int {
+pub fn BitReader::tell(self : BitReader) -> Int32 {
   self.pos
 }
 
 ///|
 /// 返回剩余可读位数。
-pub fn BitReader::remaining_bits(self : BitReader) -> Int {
+pub fn BitReader::remaining_bits(self : BitReader) -> Int32 {
   self.total_bits() - self.pos
 }
 
 ///|
 /// 将读取位置移动到 `pos` 位处（用于回退或跳跃）。
-pub fn BitReader::seek(self : BitReader, pos : Int) -> Unit {
+pub fn BitReader::seek(self : BitReader, pos : Int32) -> Unit {
   guard! pos >= 0 && pos <= self.total_bits()
   self.pos = pos
 }
 
 ///|
 /// 读取 1 位，返回 0 或 1（LSB-first）。
-pub fn BitReader::read_bit(self : BitReader) -> Int {
+pub fn BitReader::read_bit(self : BitReader) -> Int32 {
   let byte = self.data.unsafe_get(self.pos >> 3).to_int()
   let shift = self.pos & 7
   self.pos += 1
@@ -63,7 +63,7 @@ pub fn BitReader::read_bit(self : BitReader) -> Int {
 /// 连续读取 `n` 位（LSB-first，`0 <= n <= 32`），返回无符号整数结果。
 ///
 /// 读取到的第 1 位进入结果的 bit 0（最低位），第 2 位进入 bit 1，依此类推。
-pub fn BitReader::read_bits(self : BitReader, n : Int) -> Int {
+pub fn BitReader::read_bits(self : BitReader, n : Int32) -> Int32 {
   guard! n >= 0 && n <= 32
   let mut result = 0
   for i in 0..<n {
@@ -74,7 +74,7 @@ pub fn BitReader::read_bits(self : BitReader, n : Int) -> Int {
 
 ///|
 /// 跳过 `n` 位。
-pub fn BitReader::skip(self : BitReader, n : Int) -> Unit {
+pub fn BitReader::skip(self : BitReader, n : Int32) -> Unit {
   guard! n >= 0
   self.pos += n
 }

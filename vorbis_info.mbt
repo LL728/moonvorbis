@@ -8,10 +8,10 @@
 ///|
 /// Vorbis 流的基础信息。
 pub struct VorbisInfo {
-  channels : Int
-  sample_rate : Int
-  blocksize0 : Int
-  blocksize1 : Int
+  channels : Int32
+  sample_rate : Int32
+  blocksize0 : Int32
+  blocksize1 : Int32
 }
 
 ///|

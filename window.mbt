@@ -4,7 +4,7 @@
 
 ///|
 /// 计算 Vorbis window（长度 n2），用于相邻帧的重叠相加。
-pub fn compute_window(n2 : Int) -> Array[Float] {
+pub fn compute_window(n2 : Int32) -> Array[Float] {
   let pi : Float = 3.1415927
   let half = pi / Float::from_int(2)
   let w : Array[Float] = []

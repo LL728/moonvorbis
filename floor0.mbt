@@ -9,12 +9,12 @@
 ///|
 /// floor0 的配置。
 pub struct Floor0 {
-  order : Int
-  rate : Int
-  bark_map_size : Int
-  amplitude_bits : Int
-  amplitude_offset : Int
-  books : Array[Int]
+  order : Int32
+  rate : Int32
+  bark_map_size : Int32
+  amplitude_bits : Int32
+  amplitude_offset : Int32
+  books : Array[Int32]
 }
 
 ///|
@@ -59,7 +59,7 @@ pub fn Floor0::parse(
     return Err("floor0 bark map size is zero")
   }
 
-  let books : Array[Int] = []
+  let books : Array[Int32] = []
   for _ in 0..<book_count {
     let number = br.read_bits(8)
     if number >= codebooks.length() {
@@ -148,7 +148,7 @@ pub fn Floor0::decode(
 pub fn Floor0::synthesize(
   self : Floor0,
   memo : Array[Float],
-  n2 : Int,
+  n2 : Int32,
 ) -> Array[Float] {
   let order = self.order
   let bark_map_size = self.bark_map_size
@@ -159,7 +159,7 @@ pub fn Floor0::synthesize(
   let scale : Float = Float::from_double(
     Double::from_int(bark_map_size) / to_bark(half_rate.to_double()),
   )
-  let band_map : Array[Int] = []
+  let band_map : Array[Int32] = []
   for j in 0..<n2 {
     let linear : Float = half_rate / Float::from_int(n2) * Float::from_int(j)
     let mut band = (to_bark(linear.to_double()) * scale.to_double())

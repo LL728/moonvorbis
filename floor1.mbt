@@ -5,22 +5,22 @@
 ///|
 /// floor1 的配置与预计算数据。
 pub struct Floor1 {
-  partitions : Int
-  partition_class_list : Array[Int]
-  class_dimensions : Array[Int]
-  class_subclasses : Array[Int]
-  class_masterbooks : Array[Int]
-  subclass_books : Array[Array[Int]]
-  multiplier : Int
-  rangebits : Int
-  x_list : Array[Int]
-  sorted_order : Array[Int]
-  neighbors : Array[Array[Int]]
+  partitions : Int32
+  partition_class_list : Array[Int32]
+  class_dimensions : Array[Int32]
+  class_subclasses : Array[Int32]
+  class_masterbooks : Array[Int32]
+  subclass_books : Array[Array[Int32]]
+  multiplier : Int32
+  rangebits : Int32
+  x_list : Array[Int32]
+  sorted_order : Array[Int32]
+  neighbors : Array[Array[Int32]]
 }
 
 ///|
 /// 绝对值。
-fn iabs(x : Int) -> Int {
+fn iabs(x : Int32) -> Int32 {
   if x < 0 {
     -x
   } else {
@@ -30,7 +30,13 @@ fn iabs(x : Int) -> Int {
 
 ///|
 /// 线性插值预测：在 (x0,y0)-(x1,y1) 线段上取 x 处的 y。
-fn predict_point(x : Int, x0 : Int, x1 : Int, y0 : Int, y1 : Int) -> Int {
+fn predict_point(
+  x : Int32,
+  x0 : Int32,
+  x1 : Int32,
+  y0 : Int32,
+  y1 : Int32,
+) -> Int32 {
   let dy = y1 - y0
   let adx = x1 - x0
   let err = iabs(dy) * (x - x0)
@@ -44,9 +50,9 @@ fn predict_point(x : Int, x0 : Int, x1 : Int, y0 : Int, y1 : Int) -> Int {
 
 ///|
 /// 按 x_list 的值对索引 [0..n) 做升序稳定排序（插入排序，n 很小）。
-fn sort_indices(x_list : Array[Int]) -> Array[Int] {
+fn sort_indices(x_list : Array[Int32]) -> Array[Int32] {
   let n = x_list.length()
-  let indices : Array[Int] = []
+  let indices : Array[Int32] = []
   for i in 0..<n {
     indices.push(i)
   }
@@ -65,7 +71,7 @@ fn sort_indices(x_list : Array[Int]) -> Array[Int] {
 
 ///|
 /// 求 key point `n` 在 x_list 中的左右最近邻居索引（比它小/大的最近者）。
-fn neighbors_of(x_list : Array[Int], n : Int) -> Array[Int] {
+fn neighbors_of(x_list : Array[Int32], n : Int32) -> Array[Int32] {
   let mut low = -1
   let mut high = 65536
   let mut low_idx = 0
@@ -88,7 +94,7 @@ fn neighbors_of(x_list : Array[Int], n : Int) -> Array[Int] {
 pub fn Floor1::parse(br : BitReader) -> Result[Floor1, String] {
   let partitions = br.read_bits(5)
 
-  let partition_class_list : Array[Int] = []
+  let partition_class_list : Array[Int32] = []
   let mut max_class = -1
   for _ in 0..<partitions {
     let c = br.read_bits(4)
@@ -98,10 +104,10 @@ pub fn Floor1::parse(br : BitReader) -> Result[Floor1, String] {
     }
   }
 
-  let class_dimensions : Array[Int] = []
-  let class_subclasses : Array[Int] = []
-  let class_masterbooks : Array[Int] = []
-  let subclass_books : Array[Array[Int]] = []
+  let class_dimensions : Array[Int32] = []
+  let class_subclasses : Array[Int32] = []
+  let class_masterbooks : Array[Int32] = []
+  let subclass_books : Array[Array[Int32]] = []
   for _ in 0..<(max_class + 1) {
     let dim = br.read_bits(3) + 1
     class_dimensions.push(dim)
@@ -109,7 +115,7 @@ pub fn Floor1::parse(br : BitReader) -> Result[Floor1, String] {
     class_subclasses.push(subclasses)
     let masterbook = if subclasses != 0 { br.read_bits(8) } else { -1 }
     class_masterbooks.push(masterbook)
-    let books : Array[Int] = []
+    let books : Array[Int32] = []
     for _ in 0..<(1 << subclasses) {
       books.push(br.read_bits(8) - 1)
     }
@@ -119,7 +125,7 @@ pub fn Floor1::parse(br : BitReader) -> Result[Floor1, String] {
   let multiplier = br.read_bits(2) + 1
   let rangebits = br.read_bits(4)
 
-  let x_list : Array[Int] = [0, 1 << rangebits]
+  let x_list : Array[Int32] = [0, 1 << rangebits]
   for i in 0..<partitions {
     let c = partition_class_list[i]
     for _ in 0..<class_dimensions[c] {
@@ -130,7 +136,7 @@ pub fn Floor1::parse(br : BitReader) -> Result[Floor1, String] {
   // 预计算 sorted_order 与 neighbors
   let sorted_order = sort_indices(x_list)
   let values = x_list.length()
-  let neighbors : Array[Array[Int]] = []
+  let neighbors : Array[Array[Int32]] = []
   for j in 0..<values {
     neighbors.push(neighbors_of(x_list, j))
   }
@@ -156,12 +162,12 @@ pub fn Floor1::decode(
   self : Floor1,
   br : BitReader,
   codebooks : Array[Codebook],
-) -> Result[Array[Int], String] {
+) -> Result[Array[Int32], String] {
   let range_list = [256, 128, 86, 64]
   let range = range_list[self.multiplier - 1]
   let amp_bits = ilog(range) - 1
 
-  let final_y : Array[Int] = []
+  let final_y : Array[Int32] = []
   final_y.push(br.read_bits(amp_bits))
   final_y.push(br.read_bits(amp_bits))
 
@@ -277,11 +283,11 @@ let inverse_db_table : Array[Float] = [
 /// Bresenham 线性插值，把 [x0,y0] 到 [x1,y1] 的线段累乘到 output 上（Y 经 inverse_db_table 转换）。
 fn draw_line(
   output : Array[Float],
-  x0 : Int,
-  y0 : Int,
-  x1 : Int,
-  y1 : Int,
-  n : Int,
+  x0 : Int32,
+  y0 : Int32,
+  x1 : Int32,
+  y1 : Int32,
+  n : Int32,
 ) -> Unit {
   let dy = y1 - y0
   let adx = x1 - x0
@@ -314,8 +320,8 @@ fn draw_line(
 /// floor1 第二阶段：把 finalY 关键点插值成完整 floor 曲线（长度 n2）。
 pub fn Floor1::synthesize(
   self : Floor1,
-  final_y : Array[Int],
-  n2 : Int,
+  final_y : Array[Int32],
+  n2 : Int32,
 ) -> Array[Float] {
   let output : Array[Float] = []
   for _ in 0..<n2 {

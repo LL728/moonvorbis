@@ -4,7 +4,7 @@
 
 ///|
 /// Vorbis IMDCT。`buffer[0..n2]` 为输入频域系数，结果写回 `buffer[0..n]`。
-pub fn inverse_mdct(buffer : Array[Float], n : Int) -> Unit {
+pub fn inverse_mdct(buffer : Array[Float], n : Int32) -> Unit {
   let n2 = n >> 1
   let x : Array[Float] = []
   for j in 0..<n2 {

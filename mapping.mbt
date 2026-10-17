@@ -13,14 +13,14 @@
 /// * `mux` : 每个声道使用哪个 submap；
 /// * `time_config` / `floor` / `residue` : 每个 submap 的配置索引。
 pub struct Mapping {
-  submaps : Int
-  coupling_steps : Int
-  magnitude : Array[Int]
-  angle : Array[Int]
-  mux : Array[Int]
-  time_config : Array[Int]
-  floor : Array[Int]
-  residue : Array[Int]
+  submaps : Int32
+  coupling_steps : Int32
+  magnitude : Array[Int32]
+  angle : Array[Int32]
+  mux : Array[Int32]
+  time_config : Array[Int32]
+  floor : Array[Int32]
+  residue : Array[Int32]
 }
 
 ///|
@@ -29,15 +29,15 @@ pub struct Mapping {
 /// `channels` 是流的声道数（来自 identification header）。
 pub fn Mapping::parse(
   br : BitReader,
-  channels : Int,
+  channels : Int32,
 ) -> Result[Mapping, String] {
   // submaps：先读 1 位 flag，置位才读 4 位 + 1，否则默认 1
   let submaps = if br.read_bits(1) == 1 { br.read_bits(4) + 1 } else { 1 }
 
   // coupling：先读 1 位 flag，置位才读 8 位 + 1 与各声道对
   let mut coupling_steps = 0
-  let magnitude : Array[Int] = []
-  let angle : Array[Int] = []
+  let magnitude : Array[Int32] = []
+  let angle : Array[Int32] = []
   if br.read_bits(1) == 1 {
     coupling_steps = br.read_bits(8) + 1
     for _ in 0..<coupling_steps {
@@ -57,7 +57,7 @@ pub fn Mapping::parse(
     return Err("mapping reserved field nonzero")
   }
 
-  let mux : Array[Int] = []
+  let mux : Array[Int32] = []
   if submaps > 1 {
     for _ in 0..<channels {
       let m = br.read_bits(4)
@@ -69,9 +69,9 @@ pub fn Mapping::parse(
   }
 
   // 每个 submap 的 floor/residue/time 配置索引
-  let time_config : Array[Int] = []
-  let floor : Array[Int] = []
-  let residue : Array[Int] = []
+  let time_config : Array[Int32] = []
+  let floor : Array[Int32] = []
+  let residue : Array[Int32] = []
   for _ in 0..<submaps {
     time_config.push(br.read_bits(8))
     floor.push(br.read_bits(8))

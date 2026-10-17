@@ -10,7 +10,7 @@
 /// PCM），字段放开写会让外部绕过这个次序。读取统一走下面的访问器。
 pub struct VorbisStream {
   priv assembler : PacketAssembler
-  priv mut header_state : Int
+  priv mut header_state : Int32
   priv mut info : VorbisInfo?
   priv mut comment : VorbisComment?
   // setup 不在流上留存：解析完即交给 Decoder，此后不再需要。
@@ -116,7 +116,7 @@ pub fn VorbisStream::metadata(self : VorbisStream) -> VorbisComment? {
 
 ///|
 /// 采样率（header 解析完成后可用，否则返回 0）。
-pub fn VorbisStream::sample_rate(self : VorbisStream) -> Int {
+pub fn VorbisStream::sample_rate(self : VorbisStream) -> Int32 {
   match self.info {
     Some(i) => i.sample_rate
     None => 0
@@ -125,7 +125,7 @@ pub fn VorbisStream::sample_rate(self : VorbisStream) -> Int {
 
 ///|
 /// 声道数。
-pub fn VorbisStream::channels(self : VorbisStream) -> Int {
+pub fn VorbisStream::channels(self : VorbisStream) -> Int32 {
   match self.info {
     Some(i) => i.channels
     None => 0

@@ -8,7 +8,7 @@
 ///|
 /// `ilog(v)`：表示 `v` 所需的位数，即 `floor(log2(v)) + 1`（`v > 0` 时）。
 /// 用于 ordered codebook 的游程长度读取。
-fn ilog(v : Int) -> Int {
+fn ilog(v : Int32) -> Int32 {
   let mut ret = 0
   let mut x = v
   while x > 0 {
@@ -20,7 +20,7 @@ fn ilog(v : Int) -> Int {
 
 ///|
 /// 整数幂 `base^exp`。
-fn pow_int(base : Int, exp : Int) -> Int {
+fn pow_int(base : Int32, exp : Int32) -> Int32 {
   let mut result = 1
   for _ in 0..<exp {
     result = result * base
@@ -31,7 +31,7 @@ fn pow_int(base : Int, exp : Int) -> Int {
 ///|
 /// lookup type 1 的 lookup values 数量：最大的 `r` 使 `r^dim <= entries`（即 floor(entries^(1/dim))）。
 /// 用整数运算避免浮点误差。
-fn lookup1_values(entries : Int, dim : Int) -> Int {
+fn lookup1_values(entries : Int32, dim : Int32) -> Int32 {
   let mut r = 0
   while pow_int(r + 1, dim) <= entries {
     r += 1
@@ -42,7 +42,7 @@ fn lookup1_values(entries : Int, dim : Int) -> Int {
 ///|
 /// Vorbis 专用的 32 位浮点解包：1 位符号 + 10 位指数 + 21 位尾数。
 /// 值为 `mantissa * 2^(exponent - 788)`，与 IEEE 754 不同，不能按位重解释。
-fn float32_unpack(x : UInt) -> Float {
+fn float32_unpack(x : UInt32) -> Float {
   let mantissa = (x & 0x1fffffU).reinterpret_as_int()
   let sign = (x & 0x80000000U) != 0U
   let exp = ((x & 0x7fe00000U) >> 21).reinterpret_as_int()
@@ -62,15 +62,15 @@ fn float32_unpack(x : UInt) -> Float {
 /// * `lookup_type` : 0（无 lookup）、1 或 2；
 /// * `multiplicands` : lookup table 的量化值（lookup type > 0 时非空）。
 pub struct Codebook {
-  dimensions : Int
-  entries : Int
-  lengths : Array[Int]
-  lookup_type : Int
+  dimensions : Int32
+  entries : Int32
+  lengths : Array[Int32]
+  lookup_type : Int32
   min_value : Float
   delta_value : Float
-  value_bits : Int
-  sequence_flag : Int
-  multiplicands : Array[Int]
+  value_bits : Int32
+  sequence_flag : Int32
+  multiplicands : Array[Int32]
   multiplicands_f : Array[Float]
   huffman : HuffmanTable
 }
@@ -90,7 +90,7 @@ pub fn Codebook::parse(br : BitReader) -> Result[Codebook, String] {
   let ordered = br.read_bits(1)
   let sparse = if ordered == 1 { 0 } else { br.read_bits(1) }
 
-  let lengths : Array[Int] = []
+  let lengths : Array[Int32] = []
   if ordered == 1 {
     // ordered codebook：码长按游程编码，每次游程后 current_length 递增 1
     let mut current_entry = 0
@@ -127,7 +127,7 @@ pub fn Codebook::parse(br : BitReader) -> Result[Codebook, String] {
   let mut delta_value : Float = 0
   let mut value_bits = 0
   let mut sequence_flag = 0
-  let multiplicands : Array[Int] = []
+  let multiplicands : Array[Int32] = []
   let multiplicands_f : Array[Float] = []
   if lookup_type != 0 {
     if lookup_type != 1 && lookup_type != 2 {
@@ -208,7 +208,7 @@ pub fn Codebook::parse(br : BitReader) -> Result[Codebook, String] {
 pub fn Codebook::decode_scalar(
   self : Codebook,
   br : BitReader,
-) -> Result[Int, String] {
+) -> Result[Int32, String] {
   self.huffman.decode(br)
 }
 
@@ -218,8 +218,8 @@ pub fn Codebook::decode_vq(
   self : Codebook,
   br : BitReader,
   target : Array[Float],
-  offset : Int,
-  len : Int,
+  offset : Int32,
+  len : Int32,
 ) -> Result[Unit, String] {
   if self.lookup_type == 0 {
     return Err("codebook has no lookup table")
@@ -245,8 +245,8 @@ pub fn Codebook::decode_vq_set(
   self : Codebook,
   br : BitReader,
   target : Array[Float],
-  offset : Int,
-  len : Int,
+  offset : Int32,
+  len : Int32,
 ) -> Result[Unit, String] {
   if self.lookup_type == 0 {
     return Err("codebook has no lookup table")
@@ -274,9 +274,9 @@ pub fn Codebook::decode_vq_step(
   self : Codebook,
   br : BitReader,
   target : Array[Float],
-  offset : Int,
-  len : Int,
-  step : Int,
+  offset : Int32,
+  len : Int32,
+  step : Int32,
 ) -> Result[Unit, String] {
   if self.lookup_type == 0 {
     return Err("codebook has no lookup table")

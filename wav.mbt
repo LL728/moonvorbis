@@ -6,7 +6,10 @@
 ///|
 /// 把多声道 Float PCM 序列化为 16-bit PCM WAV 字节（样本按声道交错）。
 /// 样本超出 [-1,1] 时截断，再四舍五入到 16 位有符号整数。
-pub fn wav_encode_pcm16(pcm : Array[Array[Float]], sample_rate : Int) -> Bytes {
+pub fn wav_encode_pcm16(
+  pcm : Array[Array[Float]],
+  sample_rate : Int32,
+) -> Bytes {
   let channels = pcm.length()
   let frames = if channels == 0 { 0 } else { pcm[0].length() }
   let data_size = frames * channels * 2

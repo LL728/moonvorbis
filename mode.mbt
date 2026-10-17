@@ -8,10 +8,10 @@
 ///|
 /// 单个 mode 的配置。
 pub struct Mode {
-  blockflag : Int
-  windowtype : Int
-  transformtype : Int
-  mapping : Int
+  blockflag : Int32
+  windowtype : Int32
+  transformtype : Int32
+  mapping : Int32
 }
 
 ///|

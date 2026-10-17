@@ -29,7 +29,7 @@ pub struct VorbisSetup {
 /// 目前仅支持 floor1（floor0 返回错误）。
 pub fn VorbisSetup::parse(
   packet : Bytes,
-  channels : Int,
+  channels : Int32,
 ) -> Result[VorbisSetup, String] {
   if packet.length() < 7 {
     return Err("truncated setup header")

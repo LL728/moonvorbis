@@ -3,7 +3,7 @@
 
 ///|
 /// 构造一个 `len` 字节、内容全为 `byte` 的 Bytes。
-fn repeat_byte(byte : Byte, len : Int) -> Bytes {
+fn repeat_byte(byte : Byte, len : Int32) -> Bytes {
   let buf = @buffer.Buffer()
   for _ in 0..<len {
     buf.write_byte(byte)
@@ -14,7 +14,7 @@ fn repeat_byte(byte : Byte, len : Int) -> Bytes {
 ///|
 /// 构造一个测试用 OggPage：27 字节假头 + segment table + body。
 /// packet 重组只读 segment table 和 body，头字段不参与，故全部置 0。
-fn make_page(segments : Array[Int], body : Bytes) -> OggPage {
+fn make_page(segments : Array[Int32], body : Bytes) -> OggPage {
   let buf = @buffer.Buffer()
   for _ in 0..<27 {
     buf.write_byte(b'\x00')
