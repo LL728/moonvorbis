@@ -159,7 +159,7 @@ pub struct Residue {
   cascade : Array[Int]
   residue_books : Array[Array[Int]]
 }
-pub fn Residue::decode(Self, BitReader, Array[Codebook], Array[Array[Float]], Int) -> Result[Unit, String]
+pub fn Residue::decode(Self, BitReader, Array[Codebook], Array[Array[Float]], Array[Int], Int) -> Result[Unit, String]
 pub fn Residue::parse(BitReader) -> Result[Self, String]
 
 pub struct VorbisComment {

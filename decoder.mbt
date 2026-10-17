@@ -10,7 +10,7 @@ pub struct Decoder {
   window0 : Array[Float]
   window1 : Array[Float]
   previous_window : Array[Array[Float]]
-  previous_length : Array[Int]
+  previous_length : Array[Int32]
 }
 
 ///|
@@ -19,7 +19,7 @@ pub fn Decoder::new(info : VorbisInfo, setup : VorbisSetup) -> Decoder {
   let window0 = compute_window(info.blocksize0 >> 1)
   let window1 = compute_window(info.blocksize1 >> 1)
   let previous_window : Array[Array[Float]] = []
-  let previous_length : Array[Int] = []
+  let previous_length : Array[Int32] = []
   for _ in 0..<info.channels {
     let w : Array[Float] = []
     for _ in 0..<(info.blocksize1 >> 1) {
@@ -75,7 +75,7 @@ pub fn Decoder::decode_packet(
 
   // floor 解码：解出本声道的包络曲线，并记下它是否真的给了数据
   let floor_curves : Array[Array[Float]] = []
-  let has_floor : Array[Int] = []
+  let has_floor : Array[Int32] = []
   for ch in 0..<channels {
     let mux = if mapping.submaps > 1 { mapping.mux[ch] } else { 0 }
     let floor = self.setup.floors[mapping.floor[mux]]
@@ -136,14 +136,27 @@ pub fn Decoder::decode_packet(
     }
     if any_floor {
       let residue = self.setup.residues[mapping.residue[s]]
+      // 把本 submap 所有声道交给 residue，floor_used=0 的声道标记为 skip
+      // （对应参考实现的 do_not_decode）。非交错路径下这些声道的 classbook
+      // 与 VQ 码字都不读；交错路径本来就每组只读一个 classbook，不受影响。
       let sub_targets : Array[Array[Float]] = []
+      let sub_skip : Array[Int32] = []
       for ch in 0..<channels {
         let mux = if mapping.submaps > 1 { mapping.mux[ch] } else { 0 }
         if mux == s {
           sub_targets.push(channel_buffers[ch])
+          // 耦合对内的声道即使 floor_used=0 也不跳过：编码器仍为它写 VQ
+          sub_skip.push(
+            if has_floor[ch] == 1 || mapping.coupling_steps > 0 {
+              0
+            } else {
+              1
+            },
+          )
         }
       }
-      match residue.decode(br, self.setup.codebooks, sub_targets, n2) {
+      match
+        residue.decode(br, self.setup.codebooks, sub_targets, sub_skip, n2) {
         Ok(_) => ()
         Err(e) => return Err(e)
       }

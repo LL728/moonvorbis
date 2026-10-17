@@ -14,14 +14,14 @@
 /// * `classifications` / `classbook` : 分区分类与对应 codebook；
 /// * `cascade` : 每个 classification 的残差级联编码描述。
 pub struct Residue {
-  residue_type : Int
-  begin : Int
-  end : Int
-  partition_size : Int
-  classifications : Int
-  classbook : Int
-  cascade : Array[Int]
-  residue_books : Array[Array[Int]]
+  residue_type : Int32
+  begin : Int32
+  end : Int32
+  partition_size : Int32
+  classifications : Int32
+  classbook : Int32
+  cascade : Array[Int32]
+  residue_books : Array[Array[Int32]]
 }
 
 ///|
@@ -38,7 +38,7 @@ pub fn Residue::parse(br : BitReader) -> Result[Residue, String] {
   let classbook = br.read_bits(8)
 
   // 每个 classification 的级联编码
-  let cascade : Array[Int] = []
+  let cascade : Array[Int32] = []
   for _ in 0..<classifications {
     let low_bits = br.read_bits(3)
     let bitflag = br.read_bits(1)
@@ -47,9 +47,9 @@ pub fn Residue::parse(br : BitReader) -> Result[Residue, String] {
   }
 
   // 每个 classification 每个 pass 的 codebook 索引（cascade bit 为 1 时读 8 位，否则 -1）
-  let residue_books : Array[Array[Int]] = []
+  let residue_books : Array[Array[Int32]] = []
   for j in 0..<classifications {
-    let books : Array[Int] = []
+    let books : Array[Int32] = []
     for k in 0..<8 {
       if (cascade[j] & (1 << k)) != 0 {
         books.push(br.read_bits(8))
@@ -76,18 +76,22 @@ pub fn Residue::parse(br : BitReader) -> Result[Residue, String] {
 /// 解码 residue，把残差累加到各声道 target。
 /// `n` 是半块大小；type 2 的 actual_size 为 n*2，其余为 n。
 /// type 2 且多声道时，VQ 系数按声道交错分配（立体声耦合）。
+/// `skip[c]` 非零时跳过该声道的 VQ 数据（classbook 码字仍然读取）。
 pub fn Residue::decode(
   self : Residue,
   br : BitReader,
   codebooks : Array[Codebook],
   targets : Array[Array[Float]],
-  n : Int,
+  skip : Array[Int32],
+  n : Int32,
 ) -> Result[Unit, String] {
   let rtype = self.residue_type
   let classbook = codebooks[self.classbook]
   let classwords = classbook.dimensions
   let ch = targets.length()
-  let actual_size = if rtype == 2 { n * 2 } else { n }
+  // type 2 的交错向量总长 = ch * n（参考实现 res2_inverse:
+  // max = (pcmend * ch) >> 1，pcmend = 2*n）。type 0/1 每声道独立，长度 = n。
+  let actual_size = if rtype == 2 { n * ch } else { n }
   let limit_begin = if self.begin < actual_size {
     self.begin
   } else {
@@ -97,27 +101,31 @@ pub fn Residue::decode(
   let n_read = limit_end - limit_begin
   let part_read = n_read / self.partition_size
 
-  let clear_len = if ch > 1 { n } else { actual_size }
+  // 每个 target 数组长度为 n，清零不能超过它
+  let clear_len = n
   for c in 0..<ch {
     for i in 0..<clear_len {
       targets[c][i] = 0
     }
   }
 
+  let interleaved = rtype == 2 && ch > 1
+
   // 每个 partition 的 classification。通用路径下每个声道各有一份——classbook
   // 码字是逐声道读的；只有 type 2 的交错路径才共用一个声道的那份。
   // 多留 classwords 个位置避免填充越界。
-  let class_of : Array[Array[Int]] = []
+  let class_of : Array[Array[Int32]] = []
   for _ in 0..<ch {
-    let row : Array[Int] = []
+    let row : Array[Int32] = []
     for _ in 0..<(part_read + classwords) {
       row.push(0)
     }
     class_of.push(row)
   }
 
-  let interleaved = rtype == 2 && ch > 1
-
+  // 参考实现（libvorbis res2_inverse）：type 2 交错路径每个 partition 组
+  // 只读一个 classbook 码字，但 VQ 码字按声道顺序写入（vorbis_book_decodevv_add
+  // 的 offset 是 partition 的交错起始位置，逐声道顺序取值）。
   for pass in 0..<8 {
     let mut pcount = 0
     while pcount < part_read {
@@ -135,25 +143,31 @@ pub fn Residue::decode(
             self.classifications,
           )
         } else {
+          // 逐声道读 classbook。do_not_decode 的声道（skip 非零）连
+          // classbook 码字都不读——参考实现里 classbook 与 VQ 两处都带
+          // do_not_decode 守卫，只跳 VQ 会让位流超前、最终读穿 packet。
           for j in 0..<ch {
-            let temp = match classbook.decode_scalar(br) {
-              Ok(t) => t
-              Err(e) => return Err(e)
+            if skip.length() <= j || skip[j] == 0 {
+              let temp = match classbook.decode_scalar(br) {
+                Ok(t) => t
+                Err(e) => return Err(e)
+              }
+              spread_classification(
+                class_of[j],
+                pcount,
+                classwords,
+                temp,
+                self.classifications,
+              )
             }
-            spread_classification(
-              class_of[j],
-              pcount,
-              classwords,
-              temp,
-              self.classifications,
-            )
           }
         }
       }
       let mut i = 0
       while i < classwords && pcount < part_read {
         if interleaved {
-          // type 2 多声道：VQ 系数按声道交错分配
+          // type 2 多声道：VQ 系数按声道交错分配（与
+          // vorbis_book_decodevv_add 一致）。
           let c = class_of[0][pcount]
           let b = self.residue_books[c][pass]
           if b >= 0 {
@@ -193,7 +207,7 @@ pub fn Residue::decode(
           for j in 0..<ch {
             let c = class_of[j][pcount]
             let b = self.residue_books[c][pass]
-            if b >= 0 {
+            if b >= 0 && (skip.length() <= j || skip[j] == 0) {
               match
                 decode_partition(
                   codebooks[b],
@@ -221,11 +235,11 @@ pub fn Residue::decode(
 /// 把一个 classbook 码字按 classification 数展开成 classwords 个数字，
 /// 写在 row 的 pcount 起、由高到低的位置上。
 fn spread_classification(
-  row : Array[Int],
-  pcount : Int,
-  classwords : Int,
-  codeword : Int,
-  count : Int,
+  row : Array[Int32],
+  pcount : Int32,
+  classwords : Int32,
+  codeword : Int32,
+  count : Int32,
 ) -> Unit {
   let mut q = codeword
   let mut k = 0
@@ -245,9 +259,9 @@ fn decode_partition(
   book : Codebook,
   br : BitReader,
   target : Array[Float],
-  offset : Int,
-  part_size : Int,
-  rtype : Int,
+  offset : Int32,
+  part_size : Int32,
+  rtype : Int32,
 ) -> Result[Unit, String] {
   if book.dimensions <= 0 {
     return Err("codebook dimensions is zero")
