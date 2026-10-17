@@ -3,7 +3,7 @@
 本项目遵循[语义化版本](https://semver.org/lang/zh-CN/)。版本号与日期以
 [mooncakes.io](https://mooncakes.io/docs/LL728/moonvorbis) 上的发布记录为准。
 
-## [未发布]
+## [0.1.4] - 2026-10-17
 
 ### 修复
 
@@ -74,6 +74,7 @@
 - 对外接口 `decode_ogg` 与 `VorbisStream`，输出 16-bit PCM WAV
 - 命令行工具、浏览器 WASM demo、与 libvorbis 的交叉验证脚本
 
+[0.1.4]: https://github.com/LL728/moonvorbis/releases/tag/v0.1.4
 [0.1.3]: https://github.com/LL728/moonvorbis/releases/tag/v0.1.3
 [0.1.2]: https://github.com/LL728/moonvorbis/releases/tag/v0.1.2
 [0.1.1]: https://mooncakes.io/docs/LL728/moonvorbis
